@@ -1,0 +1,1675 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>問いの構造ツリー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDF0F3;
+    --paper-2:#E4E9EE;
+    --panel:#16202B;
+    --panel-2:#1E2C3A;
+    --ink:#1A2733;
+    --muted:#5C6B78;
+    --muted-2:#8595A2;
+    --line:#D3DAE1;
+    --line-strong:#C0CAD3;
+    --accent:#C0722E;
+    --accent-hi:#D98A44;
+    --accent-soft:#F0DFCB;
+    --panel-line:#2C3E4F;
+    --panel-muted:#7E93A5;
+    --danger:#B04A3E;
+    --ok:#3E7D6B;
+    --shadow:0 1px 2px rgba(20,35,50,.06),0 6px 20px rgba(20,35,50,.08);
+    --radius:9px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+
+  /* ---------- Layout ---------- */
+  .app{display:grid;grid-template-columns:288px 1fr;height:100vh;overflow:hidden}
+
+  /* ---------- Sidebar ---------- */
+  .side{
+    background:var(--panel);
+    color:#E7EDF2;
+    display:flex;flex-direction:column;
+    border-right:1px solid var(--panel-line);
+    min-height:0;
+  }
+  .brand{
+    padding:20px 20px 18px;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .brand .glyph{
+    font-family:"Newsreader",serif;
+    font-size:30px;font-weight:600;font-style:italic;
+    color:var(--accent-hi);
+    line-height:1;
+  }
+  .brand h1{
+    font-size:15px;font-weight:600;letter-spacing:.02em;
+    margin:10px 0 3px;color:#EEF3F7;
+  }
+  .brand p{
+    margin:0;font-size:11px;color:var(--panel-muted);
+    font-family:"IBM Plex Mono",monospace;letter-spacing:.02em;
+  }
+
+  .side-scroll{flex:1;overflow-y:auto;min-height:0;padding:8px 12px 12px}
+  .side-scroll::-webkit-scrollbar{width:8px}
+  .side-scroll::-webkit-scrollbar-thumb{background:#31465A;border-radius:8px}
+
+  .rail-label{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--panel-muted);
+    padding:14px 8px 8px;display:flex;align-items:center;justify-content:space-between;
+  }
+  .rail-label span.count{color:#54697C}
+
+  .hist-empty{
+    color:var(--panel-muted);font-size:12px;line-height:1.6;
+    padding:6px 10px 12px;
+  }
+  .hist-item{
+    background:transparent;border:1px solid transparent;
+    border-radius:8px;padding:9px 10px;margin-bottom:3px;
+    display:flex;gap:9px;align-items:flex-start;
+    transition:background .12s,border-color .12s;position:relative;
+  }
+  .hist-item:hover{background:var(--panel-2);border-color:var(--panel-line)}
+  .hist-item.active{background:var(--panel-2);border-color:#3A5771}
+  .hist-main{flex:1;min-width:0;cursor:pointer}
+  .hist-q{
+    font-size:12.5px;line-height:1.45;color:#DCE5EC;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .hist-meta{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;
+    color:var(--panel-muted);margin-top:5px;letter-spacing:.02em;
+  }
+  .hist-del{
+    background:none;border:none;color:#5B7185;font-size:15px;line-height:1;
+    padding:2px 4px;border-radius:5px;opacity:0;transition:opacity .12s,color .12s;
+  }
+  .hist-item:hover .hist-del{opacity:1}
+  .hist-del:hover{color:var(--danger)}
+
+  /* settings block in sidebar */
+  .settings{
+    border-top:1px solid var(--panel-line);
+    padding:14px 16px 18px;
+  }
+  .settings.collapsed .settings-body{display:none}
+  .settings-head{
+    display:flex;align-items:center;justify-content:space-between;
+    cursor:pointer;user-select:none;
+  }
+  .settings-head .rail-label{padding:0}
+  .settings-head .chev{color:var(--panel-muted);font-size:11px;transition:transform .15s}
+  .settings.collapsed .chev{transform:rotate(-90deg)}
+  .settings-body{padding-top:12px}
+  .field{margin-bottom:12px}
+  .field label{
+    display:block;font-family:"IBM Plex Mono",monospace;
+    font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--panel-muted);margin-bottom:6px;
+  }
+  .side input[type=password],.side input[type=text],.side select{
+    width:100%;background:#0F1821;border:1px solid #2E4356;color:#E7EDF2;
+    border-radius:7px;padding:8px 10px;font-size:12.5px;outline:none;
+    transition:border-color .12s;
+  }
+  .side input:focus,.side select:focus{border-color:var(--accent)}
+  .side select{cursor:pointer}
+  .key-row{display:flex;gap:6px}
+  .key-row input{flex:1}
+  .mini-btn{
+    background:#26384A;border:1px solid #35506A;color:#BFD0DE;
+    border-radius:7px;padding:0 11px;font-size:11px;font-weight:500;white-space:nowrap;
+    transition:background .12s;
+  }
+  .mini-btn:hover{background:#31485E}
+  .key-status{
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;margin-top:7px;
+    display:flex;align-items:center;gap:6px;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:#4B6076;flex:none}
+  .dot.on{background:var(--ok)}
+  .key-status .txt{color:var(--panel-muted)}
+
+  /* ---------- Main ---------- */
+  .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+  .composer{
+    padding:26px 34px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#F2F4F6,#EDF0F3);
+  }
+  .composer-inner{max-width:900px;margin:0 auto}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .eyebrow .ln{height:1px;flex:1;background:var(--line-strong)}
+  .input-wrap{position:relative}
+  #topic{
+    width:100%;border:1.5px solid var(--line-strong);border-radius:var(--radius);
+    background:#FBFCFD;padding:16px 116px 16px 18px;
+    font-family:"Newsreader",serif;font-size:19px;line-height:1.5;color:var(--ink);
+    resize:none;outline:none;min-height:124px;overflow:hidden;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  #topic:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  #topic::placeholder{color:var(--muted-2);font-style:italic}
+  .mic{
+    position:absolute;right:12px;top:12px;
+    width:40px;height:40px;border-radius:50%;
+    background:#fff;border:1.5px solid var(--line-strong);color:var(--muted);
+    display:flex;align-items:center;justify-content:center;
+    transition:all .15s;
+  }
+  .mic:hover{border-color:var(--accent);color:var(--accent)}
+  .mic.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1.3s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(176,74,62,.4)}70%{box-shadow:0 0 0 10px rgba(176,74,62,0)}100%{box-shadow:0 0 0 0 rgba(176,74,62,0)}}
+  .mic svg{width:19px;height:19px}
+
+  .controls{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}
+  .depth-ctrl{display:flex;align-items:center;gap:10px}
+  .depth-ctrl .lab{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .steps{display:flex;background:#fff;border:1.5px solid var(--line-strong);border-radius:8px;overflow:hidden}
+  .step{
+    width:38px;height:34px;border:none;background:none;color:var(--muted);
+    font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;
+    border-right:1px solid var(--line);transition:all .12s;
+  }
+  .step:last-child{border-right:none}
+  .step:hover{background:var(--paper-2)}
+  .step.sel{background:var(--ink);color:#fff}
+  .spacer{flex:1}
+  .gen-btn{
+    background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:11px 24px;font-size:14px;font-weight:600;letter-spacing:.01em;
+    display:flex;align-items:center;gap:9px;transition:background .15s,transform .06s;
+    box-shadow:0 2px 8px rgba(192,114,46,.28);
+  }
+  .gen-btn:hover{background:var(--accent-hi)}
+  .gen-btn:active{transform:translateY(1px)}
+  .gen-btn:disabled{background:var(--muted-2);box-shadow:none;cursor:not-allowed}
+  .gen-btn svg{width:16px;height:16px}
+
+  /* canvas */
+  .canvas{flex:1;overflow-y:auto;min-height:0;padding:28px 34px 80px}
+  .canvas-inner{max-width:900px;margin:0 auto}
+
+  .toolbar{
+    display:flex;align-items:center;gap:8px;margin-bottom:20px;
+    padding-bottom:16px;border-bottom:1px solid var(--line);flex-wrap:wrap;
+  }
+  .root-chip{
+    flex:1;min-width:0;font-family:"Newsreader",serif;font-size:15px;font-style:italic;
+    color:var(--muted);display:flex;align-items:center;gap:9px;
+  }
+  .root-chip .k{
+    font-family:"IBM Plex Mono",monospace;font-style:normal;font-size:10px;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--accent);
+    border:1px solid var(--accent-soft);background:#FBF4EC;padding:3px 7px;border-radius:5px;flex:none;
+  }
+  .root-chip .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tool-btn{
+    background:#fff;border:1px solid var(--line-strong);color:var(--muted);
+    border-radius:7px;padding:7px 12px;font-size:12px;font-weight:500;
+    display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap;
+  }
+  .tool-btn:hover{border-color:var(--accent);color:var(--accent);background:#FBF4EC}
+  .tool-btn svg{width:13px;height:13px}
+  .tool-btn.danger:hover{border-color:var(--danger);color:var(--danger);background:#F9EDEB}
+
+  /* ---------- Tree ---------- */
+  .tree{margin-top:4px}
+  .node{position:relative}
+  .node-children{margin-left:22px;position:relative;overflow:hidden}
+  .node-children::before{
+    content:"";position:absolute;left:-1px;top:0;bottom:14px;width:1.5px;
+    background:var(--line-strong);
+  }
+  .node.collapsed > .node-children{display:none}
+
+  .row{
+    display:flex;align-items:flex-start;gap:8px;padding:5px 0;position:relative;
+  }
+  .row-line{
+    position:absolute;left:-22px;top:19px;width:20px;height:1.5px;background:var(--line-strong);
+  }
+  .node-children > .node > .row .row-line{display:block}
+  .node > .row > .row-line{display:none}
+
+  .twist{
+    flex:none;width:20px;height:28px;border:none;background:none;color:var(--muted-2);
+    display:flex;align-items:center;justify-content:center;font-size:10px;
+    transition:transform .15s,color .12s;margin-top:1px;
+  }
+  .twist:hover{color:var(--ink)}
+  .twist.empty{visibility:hidden}
+  .node.collapsed > .row > .twist{transform:rotate(-90deg)}
+
+  .card{
+    flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:11px 13px;display:flex;align-items:flex-start;gap:11px;
+    box-shadow:var(--shadow);transition:border-color .12s,box-shadow .12s;
+    position:relative;
+  }
+  .card:hover{border-color:var(--line-strong)}
+  .node.dragging > .row > .card{opacity:.4}
+  .card.drop-into{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .card.drop-before::before,.card.drop-after::before{
+    content:"";position:absolute;left:0;right:0;height:2.5px;background:var(--accent);border-radius:2px;
+  }
+  .card.drop-before::before{top:-5px}
+  .card.drop-after::before{bottom:-5px}
+
+  .lvl{
+    flex:none;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
+    color:var(--accent);background:#FBF4EC;border-radius:5px;padding:3px 6px;
+    letter-spacing:.03em;margin-top:1px;cursor:grab;user-select:none;
+  }
+  .lvl:active{cursor:grabbing}
+  .q{
+    flex:1;min-width:0;font-family:"Newsreader",serif;font-size:16px;line-height:1.5;
+    color:var(--ink);word-break:break-word;padding:1px 0;
+  }
+  .q[contenteditable]{outline:none;cursor:text;border-radius:4px}
+  .q[contenteditable]:focus{background:#FBF9F5;box-shadow:0 0 0 2px var(--accent-soft)}
+
+  .node-acts{
+    flex:none;display:flex;gap:1px;opacity:0;transition:opacity .12s;align-self:center;
+  }
+  .card:hover .node-acts{opacity:1}
+  .act{
+    width:27px;height:27px;border:none;background:none;color:var(--muted-2);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;transition:all .12s;
+  }
+  .act:hover{background:var(--paper-2);color:var(--ink)}
+  .act.dive:hover{background:#FBF4EC;color:var(--accent)}
+  .act.del:hover{background:#F9EDEB;color:var(--danger)}
+  .act svg{width:14px;height:14px}
+  .act.busy{pointer-events:none}
+  .act.busy svg{animation:spin 1s linear infinite}
+
+  .add-child{
+    margin:3px 0 3px 0;background:none;border:1px dashed var(--line-strong);color:var(--muted-2);
+    border-radius:7px;padding:5px 11px;font-size:11.5px;display:inline-flex;align-items:center;gap:6px;
+    transition:all .12s;
+  }
+  .add-child:hover{border-color:var(--accent);color:var(--accent);background:#FBF4EC}
+  .add-child svg{width:12px;height:12px}
+
+  /* ---------- Empty / loading / error ---------- */
+  .empty{
+    max-width:560px;margin:6vh auto 0;text-align:center;padding:20px;
+  }
+  .empty .mark{
+    font-family:"Newsreader",serif;font-style:italic;font-size:72px;font-weight:500;
+    color:var(--line-strong);line-height:1;
+  }
+  .empty h2{font-size:19px;font-weight:600;margin:18px 0 10px;color:var(--ink)}
+  .empty p{color:var(--muted);font-size:14px;line-height:1.7;margin:0 auto;max-width:440px}
+  .empty .hint{
+    margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted-2);
+    display:inline-flex;gap:16px;flex-wrap:wrap;justify-content:center;
+    border-top:1px solid var(--line);padding-top:18px;
+  }
+  .empty .hint b{color:var(--muted);font-weight:500}
+
+  .loading{max-width:560px;margin:10vh auto 0;text-align:center}
+  .spinner{
+    width:34px;height:34px;margin:0 auto 20px;border:3px solid var(--line);
+    border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading .msg{font-size:15px;color:var(--ink);font-weight:500}
+  .loading .sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:8px}
+
+  .errbox{
+    max-width:560px;margin:8vh auto 0;background:#FBF0EE;border:1px solid #E7C4BE;
+    border-radius:var(--radius);padding:22px 24px;
+  }
+  .errbox h3{margin:0 0 8px;font-size:15px;color:var(--danger);display:flex;align-items:center;gap:9px}
+  .errbox p{margin:0 0 4px;font-size:13.5px;line-height:1.6;color:#7A4038}
+  .errbox .detail{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;color:#9A5A50;
+    background:#F5E2DE;border-radius:6px;padding:9px 11px;margin:12px 0 16px;
+    word-break:break-word;white-space:pre-wrap;
+  }
+  .errbox .retry{
+    background:var(--danger);color:#fff;border:none;border-radius:7px;
+    padding:9px 18px;font-size:13px;font-weight:600;
+  }
+  .errbox .retry:hover{background:#9A4038}
+
+  /* toast */
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;font-size:13px;
+    box-shadow:0 8px 30px rgba(20,35,50,.28);opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:50;display:flex;align-items:center;gap:9px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast svg{width:15px;height:15px;color:var(--accent-hi)}
+
+  /* inline API-key banner (main area) */
+  .key-banner{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:#FBF4EC;border:1px solid var(--accent-soft);border-radius:10px;
+    padding:12px 14px;margin-bottom:18px;
+  }
+  .key-banner .kb-ic{flex:none;color:var(--accent)}
+  .key-banner .kb-ic svg{width:18px;height:18px;display:block}
+  .key-banner .kb-txt{font-size:13px;line-height:1.5;color:#8A5A2A;flex:1;min-width:180px}
+  .key-banner .kb-txt b{color:#6E4419;font-weight:600}
+  .key-banner input{
+    flex:1;min-width:200px;background:#fff;border:1.5px solid var(--accent-soft);
+    border-radius:7px;padding:9px 11px;font-size:13px;color:var(--ink);outline:none;
+  }
+  .key-banner input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,114,46,.12)}
+  .key-banner .kb-save{
+    background:var(--accent);color:#fff;border:none;border-radius:7px;
+    padding:9px 18px;font-size:13px;font-weight:600;white-space:nowrap;
+  }
+  .key-banner .kb-save:hover{background:var(--accent-hi)}
+  .key-banner .kb-link{
+    font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap;
+    font-family:"IBM Plex Mono",monospace;
+  }
+  .key-banner .kb-link:hover{text-decoration:underline}
+
+  /* menu toggle + scrim (narrow screens) */
+  .menu-toggle{
+    display:none;position:fixed;left:14px;top:14px;z-index:45;
+    width:40px;height:40px;border-radius:9px;border:1px solid var(--line-strong);
+    background:#fff;color:var(--ink);align-items:center;justify-content:center;
+    box-shadow:var(--shadow);
+  }
+  .menu-toggle svg{width:20px;height:20px}
+  .scrim{position:fixed;inset:0;background:rgba(20,35,50,.42);z-index:38;opacity:0;pointer-events:none;transition:opacity .2s}
+  .scrim.show{opacity:1;pointer-events:auto}
+
+  /* primary tool button */
+  .tool-btn.primary{
+    background:var(--accent);border-color:var(--accent);color:#fff;
+    box-shadow:0 2px 8px rgba(192,114,46,.24);
+  }
+  .tool-btn.primary:hover{background:var(--accent-hi);border-color:var(--accent-hi);color:#fff}
+  .tool-btn.primary svg{stroke:#fff}
+
+  /* ---------- Question modal ---------- */
+  .modal-root{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
+  .modal-root.show{display:flex}
+  .modal-root::before{content:"";position:absolute;inset:0;background:rgba(16,24,33,.55);backdrop-filter:blur(3px)}
+  .qmodal{
+    position:relative;width:100%;max-width:620px;background:#fff;border-radius:16px;
+    box-shadow:0 24px 70px rgba(16,24,33,.4);overflow:hidden;display:flex;flex-direction:column;
+    max-height:calc(100vh - 48px);animation:qm-in .22s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes qm-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+  .qm-top{display:flex;align-items:center;gap:14px;padding:16px 18px 14px;border-bottom:1px solid var(--line)}
+  .qm-prog{flex:1;height:5px;background:var(--paper-2);border-radius:5px;overflow:hidden}
+  .qm-prog-bar{height:100%;background:var(--accent);border-radius:5px;transition:width .3s ease}
+  .qm-count{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.03em;flex:none}
+  .qm-close{flex:none;width:30px;height:30px;border:none;background:none;color:var(--muted-2);border-radius:7px;font-size:15px}
+  .qm-close:hover{background:var(--paper-2);color:var(--ink)}
+  .qm-body{padding:24px 26px 8px;overflow-y:auto}
+  .qm-path{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted-2);margin-bottom:12px;line-height:1.6}
+  .qm-path .sep{color:var(--line-strong);margin:0 3px}
+  .qm-q{font-family:"Newsreader",serif;font-size:23px;line-height:1.4;color:var(--ink);margin-bottom:22px}
+  .qm-opts{display:flex;flex-direction:column;gap:9px}
+  .qm-opt{
+    display:flex;align-items:flex-start;gap:13px;text-align:left;width:100%;
+    background:#fff;border:1.5px solid var(--line-strong);border-radius:11px;padding:14px 15px;
+    transition:all .12s;color:var(--ink);
+  }
+  .qm-opt:hover{border-color:var(--accent);background:#FDF8F2}
+  .qm-opt.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(192,114,46,.14)}
+  .qm-mark{
+    flex:none;width:26px;height:26px;border-radius:7px;background:var(--paper-2);color:var(--muted);
+    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;
+    font-size:13px;font-weight:600;transition:all .12s;margin-top:1px;
+  }
+  .qm-opt:hover .qm-mark,.qm-opt.sel .qm-mark{background:var(--accent);color:#fff}
+  .qm-otext{flex:1;font-size:15px;line-height:1.5;padding-top:2px}
+  .qm-other{border-style:dashed}
+  .qm-otherfield{
+    width:100%;margin-top:2px;border:1.5px solid var(--accent-soft);border-radius:10px;
+    padding:12px 14px;font-family:"Newsreader",serif;font-size:15px;line-height:1.5;color:var(--ink);
+    outline:none;resize:vertical;min-height:70px;background:#FDFAF6;
+  }
+  .qm-otherfield:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,114,46,.12)}
+  .qm-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 22px 20px;border-top:1px solid var(--line);margin-top:14px}
+  .qm-foot-r{display:flex;gap:8px}
+  .qm-btn{border:none;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:600;transition:all .12s}
+  .qm-btn.ghost{background:none;color:var(--muted)}
+  .qm-btn.ghost:hover:not(:disabled){background:var(--paper-2);color:var(--ink)}
+  .qm-btn.primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(192,114,46,.26)}
+  .qm-btn.primary:hover:not(:disabled){background:var(--accent-hi)}
+  .qm-btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* ---------- Report ---------- */
+  .report-actions{display:flex;align-items:center;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+  .report-actions .spacer{flex:1}
+  .report{
+    max-width:none;background:#fff;border:1px solid var(--line);border-radius:14px;
+    padding:46px 52px;box-shadow:var(--shadow);
+  }
+  .rp-head{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:8px}
+  .rp-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+  .report h1{font-family:"Newsreader",serif;font-weight:600;font-size:32px;line-height:1.25;margin:0 0 16px;color:var(--ink)}
+  .rp-topic{font-size:14px;color:var(--muted);display:flex;gap:9px;align-items:baseline;border-left:2px solid var(--accent);padding-left:12px}
+  .rp-k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);flex:none}
+  .rp-overview{font-family:"Newsreader",serif;font-size:18px;line-height:1.75;color:#28323c;background:var(--accent-soft);border-radius:10px;padding:20px 24px;margin:26px 0 34px}
+  .rp-overview p{margin:0 0 10px}.rp-overview p:last-child{margin:0}
+  .rp-sec{margin:30px 0}
+  .report h2{font-size:19px;font-weight:600;margin:0 0 12px;display:flex;align-items:baseline;gap:12px;color:var(--ink)}
+  .rp-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);font-weight:600}
+  .report p{margin:0 0 12px;font-size:15px;line-height:1.75;color:#28323c}
+  .rp-points{margin:8px 0 0;padding-left:20px}
+  .rp-points li{font-size:14.5px;margin:5px 0;color:#33404b;line-height:1.6}
+  .rp-conclusion{margin:38px 0 8px;background:var(--panel);color:#EAF0F5;border-radius:12px;padding:26px 30px}
+  .rp-conclusion h2{color:#fff}
+  .rp-conclusion p{font-size:15.5px;color:#DCE5EC}
+  .rp-appendix{margin-top:36px;border-top:1px solid var(--line);padding-top:18px}
+  .rp-appendix summary{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);cursor:pointer;letter-spacing:.04em;user-select:none}
+  .rp-qa{margin:16px 0 0;padding:0;list-style:none}
+  .rp-qa li{padding:11px 0;border-bottom:1px solid var(--line)}
+  .rp-qa-q{font-family:"Newsreader",serif;font-size:15px;color:var(--ink);margin-bottom:3px}
+  .rp-qa-a{font-size:13.5px;color:var(--accent)}
+  .rp-na{color:var(--muted-2)}
+
+  @media print{
+    .side,.composer,.menu-toggle,.report-actions,.scrim,.modal-root,.toast{display:none!important}
+    .app{display:block;height:auto}
+    .main{overflow:visible}
+    .canvas{overflow:visible;padding:0}
+    .report{border:none;box-shadow:none;border-radius:0;padding:0}
+    body{background:#fff}
+  }
+
+  @media (max-width:820px){
+    .report{padding:30px 22px}
+    .qm-q{font-size:20px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001s!important;transition-duration:.001s!important}
+  }
+  @media (max-width:820px){
+    .app{grid-template-columns:1fr}
+    .side{position:fixed;left:0;top:0;bottom:0;width:288px;z-index:40;transform:translateX(-100%);transition:transform .2s}
+    .side.open{transform:none}
+    .menu-toggle{display:flex}
+    .composer{padding-left:18px;padding-right:18px;padding-top:64px}
+    .canvas{padding-left:18px;padding-right:18px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side" id="side">
+    <div class="brand">
+      <div class="glyph">?</div>
+      <h1>問いの構造ツリー</h1>
+      <p>MECE question decomposer</p>
+    </div>
+
+    <div class="side-scroll">
+      <div class="rail-label">履歴 <span class="count" id="histCount"></span></div>
+      <div id="histList"></div>
+    </div>
+
+    <div class="settings" id="settings">
+      <div class="settings-head" id="settingsHead">
+        <div class="rail-label" style="padding:0">設定</div>
+        <span class="chev">▾</span>
+      </div>
+      <div class="settings-body">
+        <div class="field">
+          <label>Gemini API キー</label>
+          <div class="key-row" id="keyRow">
+            <input type="password" id="apiKey" placeholder="AIza… を貼り付け" autocomplete="off" spellcheck="false">
+            <button class="mini-btn" id="keySave">保存</button>
+          </div>
+          <div class="key-status" id="keyStatus">
+            <span class="dot" id="keyDot"></span>
+            <span class="txt" id="keyTxt">未設定</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>モデル</label>
+          <select id="model">
+            <optgroup label="Flash（高速・省コスト）">
+              <option value="gemini-2.5-flash">Flash 2.5（安定・デフォルト）</option>
+              <option value="gemini-3.5-flash">Flash 3.5（最新）</option>
+            </optgroup>
+            <optgroup label="Pro（高品質）">
+              <option value="gemini-2.5-pro">Pro 2.5（安定）</option>
+              <option value="gemini-3.1-pro-preview">Pro 3.1（最新）</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <div class="composer">
+      <div class="composer-inner">
+        <div id="keyBanner"></div>
+        <div class="eyebrow"><span>お題を入力</span><span class="ln"></span></div>
+        <div class="input-wrap">
+          <textarea id="topic" rows="1" placeholder="解き明かしたいテーマや中心的な問いを入力…（例：自社ECの売上をどう伸ばすか？）"></textarea>
+          <button class="mic" id="mic" title="音声入力">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          </button>
+        </div>
+        <div class="controls">
+          <div class="depth-ctrl">
+            <span class="lab">階層数</span>
+            <div class="steps" id="steps"></div>
+          </div>
+          <div class="spacer"></div>
+          <button class="gen-btn" id="genBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z"/></svg>
+            ツリーを生成
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas" id="canvas">
+      <div class="canvas-inner" id="canvasInner">
+        <!-- content injected -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="menu-toggle" id="menuToggle" title="メニュー">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div class="scrim" id="scrim"></div>
+<div class="modal-root" id="modalRoot"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   問いの構造ツリー — single-file app (Gemini)
+   ============================================================ */
+
+const LS = { KEY:"qtree_apikey", MODEL:"qtree_model", HIST:"qtree_history" };
+const MAX_DEPTH = 5, DEFAULT_DEPTH = 3;
+const ENDPOINT = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+
+let state = {
+  depth: DEFAULT_DEPTH,
+  tree: null,          // array of nodes
+  topic: "",           // root question / theme
+  activeHistId: null,
+  loading: false,
+  loadingMsg: "",
+  lastError: null,     // {stage, err}
+  view: "tree",        // 'tree' | 'report'
+  answering: null,     // {leaves:[{node,path}], idx}
+  optionsCache: {},    // nodeId -> [4 options]
+  report: null,        // generated report object
+};
+
+/* ---------- tiny helpers ---------- */
+const $ = s => document.querySelector(s);
+const el = (t,c) => { const e=document.createElement(t); if(c)e.className=c; return e; };
+const uid = () => Math.random().toString(36).slice(2,10);
+const esc = s => (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+
+function toast(msg){
+  const t=$("#toast");
+  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>${esc(msg)}`;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.remove("show"),2200);
+}
+
+/* ============================================================
+   Settings: API key + model
+   ============================================================ */
+function loadSettings(){
+  const k = localStorage.getItem(LS.KEY) || "";
+  const m = localStorage.getItem(LS.MODEL) || "gemini-2.5-flash";
+  $("#model").value = m;
+  if(![...$("#model").options].some(o=>o.value===m)){ $("#model").value="gemini-2.5-flash"; }
+  renderKeyState(k);
+}
+function renderKeyState(k){
+  const dot=$("#keyDot"), txt=$("#keyTxt");
+  if(k){
+    $("#apiKey").value="";
+    $("#apiKey").placeholder="••••••••  保存済み";
+    dot.classList.add("on"); txt.textContent="保存済み（このブラウザ）";
+    $("#keySave").textContent="変更";
+    let del=$("#keyDel");
+    if(!del){
+      del=el("button","mini-btn"); del.id="keyDel"; del.textContent="削除";
+      del.style.color="#E0A79E";
+      del.onclick=()=>{ localStorage.removeItem(LS.KEY); del.remove(); renderKeyState(""); toast("APIキーを削除しました"); };
+      $("#keyRow").appendChild(del);
+    }
+  }else{
+    dot.classList.remove("on"); txt.textContent="未設定";
+    $("#apiKey").placeholder="AIza… を貼り付け";
+    $("#keySave").textContent="保存";
+    const del=$("#keyDel"); if(del)del.remove();
+  }
+  renderKeyBanner();
+}
+function getKey(){ return localStorage.getItem(LS.KEY)||""; }
+
+function renderKeyBanner(){
+  const wrap=$("#keyBanner");
+  if(!wrap)return;
+  if(getKey()){ wrap.innerHTML=""; wrap.style.display="none"; return; }
+  wrap.style.display="";
+  wrap.innerHTML=`
+    <div class="key-banner">
+      <span class="kb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg></span>
+      <div class="kb-txt"><b>Gemini APIキーを設定してください。</b> キーはこのブラウザにのみ保存され、Anthropic等の外部には送信されません（送信先は Google の Gemini API のみ）。</div>
+      <input type="password" id="bannerKey" placeholder="AIza… を貼り付け" autocomplete="off" spellcheck="false">
+      <button class="kb-save" id="bannerSave">保存</button>
+      <a class="kb-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">キーを取得 ↗</a>
+    </div>`;
+  const save=()=>{ const v=$("#bannerKey").value.trim(); if(!v){ toast("キーを入力してください"); return; } localStorage.setItem(LS.KEY,v); renderKeyState(v); toast("APIキーを保存しました"); };
+  $("#bannerSave").onclick=save;
+  $("#bannerKey").addEventListener("keydown",e=>{ if(e.key==="Enter")save(); });
+}
+
+$("#keySave").onclick=()=>{
+  const v=$("#apiKey").value.trim();
+  if(!v){ toast("キーを入力してください"); return; }
+  localStorage.setItem(LS.KEY,v);
+  renderKeyState(v);
+  toast("APIキーを保存しました");
+};
+$("#apiKey").addEventListener("keydown",e=>{ if(e.key==="Enter")$("#keySave").click(); });
+$("#model").onchange=()=>localStorage.setItem(LS.MODEL,$("#model").value);
+
+$("#settingsHead").onclick=()=>$("#settings").classList.toggle("collapsed");
+
+/* sidebar toggle (narrow screens) */
+$("#menuToggle").onclick=()=>{ $("#side").classList.toggle("open"); $("#scrim").classList.toggle("show"); };
+$("#scrim").onclick=()=>{ $("#side").classList.remove("open"); $("#scrim").classList.remove("show"); };
+
+/* ============================================================
+   Depth stepper
+   ============================================================ */
+function buildSteps(){
+  const wrap=$("#steps"); wrap.innerHTML="";
+  for(let i=1;i<=MAX_DEPTH;i++){
+    const b=el("button","step"+(i===state.depth?" sel":""));
+    b.textContent=i;
+    b.onclick=()=>{ state.depth=i; buildSteps(); };
+    wrap.appendChild(b);
+  }
+}
+
+/* ============================================================
+   Topic textarea autosize + voice
+   ============================================================ */
+const topicEl=$("#topic");
+function autosize(){ topicEl.style.height="auto"; topicEl.style.height=Math.min(Math.max(topicEl.scrollHeight,124),320)+"px"; }
+topicEl.addEventListener("input",autosize);
+topicEl.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){ e.preventDefault(); $("#genBtn").click(); }
+});
+
+/* --- Web Speech API --- */
+let recog=null, recording=false;
+(function initVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const mic=$("#mic");
+  if(!SR){ mic.style.display="none"; return; }
+  recog=new SR();
+  recog.lang="ja-JP"; recog.interimResults=true; recog.continuous=false;
+  let base="";
+  recog.onresult=e=>{
+    let interim="",final="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal)final+=t; else interim+=t;
+    }
+    topicEl.value=base+final+interim; autosize();
+    if(final)base+=final;
+  };
+  recog.onerror=e=>{ stopRec(); if(e.error==="not-allowed")toast("マイクへのアクセスが拒否されました"); };
+  recog.onend=()=>{ if(recording){ stopRec(); } };
+  function startRec(){ base=topicEl.value?topicEl.value+" ":""; recording=true; mic.classList.add("rec"); try{recog.start();}catch(_){} }
+  function stopRec(){ recording=false; mic.classList.remove("rec"); try{recog.stop();}catch(_){} }
+  window.stopRec=stopRec;
+  mic.onclick=()=> recording?stopRec():startRec();
+})();
+
+/* ============================================================
+   Gemini call + dynamic depth schema
+   ============================================================ */
+function nodeSchema(d){
+  if(d<=1){
+    return { type:"object", properties:{ question:{type:"string"} }, required:["question"], propertyOrdering:["question"] };
+  }
+  return {
+    type:"object",
+    properties:{
+      question:{type:"string"},
+      children:{ type:"array", minItems:2, maxItems:4, items:nodeSchema(d-1) }
+    },
+    required:["question","children"],
+    propertyOrdering:["question","children"]
+  };
+}
+function rootSchema(d){
+  return {
+    type:"object",
+    properties:{ questions:{ type:"array", minItems:2, maxItems:4, items:nodeSchema(d) } },
+    required:["questions"],
+    propertyOrdering:["questions"]
+  };
+}
+
+function buildPrompt(theme,d){
+  return `あなたはMECE（漏れなく・ダブりなく）による論点分解の専門家です。
+以下の「お題」を出発点として、それを解き明かすために答えるべき下位の「問い」を、問いの構造ツリーとして洗い出してください。
+
+# ルール
+- すべてのノードは必ず疑問文で記述する（例:「〜は何か？」「〜はどの程度か？」「なぜ〜なのか？」）。体言止め・名詞句は禁止。
+- 親の問いに答えるために解くべき下位の問いへと分解する。下位の問いをすべて解けば、親の問いに答えられる関係にする。
+- 各階層の分岐数は2〜4個。MECEを保てる自然な数を選ぶ。数合わせのために不自然な問いを足したり削ったりしない。
+- 同じ親を持つ兄弟の問いは、粒度・抽象度をそろえ、互いに重複させない。
+- ちょうど ${d} 階層の深さまで展開する（お題自身は階層に数えない）。すべての枝を ${d} 階層まで一律に展開する。
+- 日本語で、簡潔かつ具体的な問いにする。
+
+# お題
+${theme}`;
+}
+function buildDivePrompt(parentQ,n){
+  return `あなたはMECE（漏れなく・ダブりなく）による論点分解の専門家です。
+以下の「親の問い」を出発点として、それを解くために答えるべき下位の「問い」を、問いの構造ツリーとして洗い出してください。
+
+# ルール
+- すべてのノードは必ず疑問文で記述する。体言止め・名詞句は禁止。
+- 親の問いに答えるために解くべき下位の問いへと分解する。
+- 各階層の分岐数は2〜4個。MECEを保てる自然な数を選ぶ。
+- 兄弟の問いは粒度をそろえ、重複させない。
+- ちょうど ${n} 階層の深さまで一律に展開する（親の問い自身は階層に数えない）。
+- 日本語で簡潔かつ具体的に。
+
+# 親の問い
+${parentQ}`;
+}
+
+/* core POST: returns raw text or throws typed error */
+async function postGemini(prompt,schema){
+  const key=getKey();
+  if(!key){ const e=new Error("APIキーが設定されていません。画面上部または左下の設定から Gemini の APIキーを保存してください。"); e.kind="nokey"; throw e; }
+  const model=$("#model").value;
+  const body={
+    contents:[{role:"user",parts:[{text:prompt}]}],
+    generationConfig:{ responseMimeType:"application/json", responseSchema:schema }
+  };
+  let res;
+  try{
+    res=await fetch(ENDPOINT(model)+"?key="+encodeURIComponent(key),{
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+    });
+  }catch(netErr){
+    const local=!/^https?:$/.test(location.protocol);
+    let msg,kind;
+    if(local){
+      msg="APIに接続できませんでした。このHTMLを「ローカルファイル」として開いているため、スマホのブラウザでは Gemini に接続できません。ファイルをネット上に公開し、その URL から開いてください。";
+      kind="local";
+    }else{
+      msg="ネットワークに接続できませんでした。接続を確認して再試行してください。";
+      kind="net";
+    }
+    const e=new Error(msg); e.kind=kind; throw e;
+  }
+  if(!res.ok){
+    let detail="";
+    try{ const j=await res.json(); detail=j.error?.message||JSON.stringify(j); }catch(_){ detail=await res.text().catch(()=>""); }
+    let msg;
+    if(res.status===400 && /API key not valid|API_KEY_INVALID/i.test(detail)) msg="APIキーが無効です。キーを確認してください。";
+    else if(res.status===403) msg="このAPIキーではアクセスが許可されていません（権限またはキー制限を確認）。";
+    else if(res.status===429) msg="レート制限に達しました。少し待ってから再試行してください。";
+    else if(res.status>=500) msg="Gemini サーバー側でエラーが発生しました。時間をおいて再試行してください。";
+    else msg=`リクエストが失敗しました（HTTP ${res.status}）。`;
+    const e=new Error(msg); e.kind="http"; e.detail=detail; throw e;
+  }
+  const data=await res.json();
+  const cand=data.candidates?.[0];
+  const finish=cand?.finishReason;
+  if(finish==="SAFETY"||finish==="PROHIBITED_CONTENT"){ const e=new Error("安全性フィルタにより生成がブロックされました。表現を変えて試してください。"); e.kind="safety"; throw e; }
+  const text=cand?.content?.parts?.map(p=>p.text).filter(Boolean).join("")||"";
+  if(!text){ const e=new Error("空の応答が返りました。もう一度試してください。"); e.kind="empty"; throw e; }
+  return text;
+}
+
+function stripFences(text){ return text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim(); }
+function parseObj(text){
+  const raw=stripFences(text);
+  try{ return JSON.parse(raw); }
+  catch(_){
+    try{ const s=raw.indexOf("{"), e=raw.lastIndexOf("}"); if(s>=0&&e>s) return JSON.parse(raw.slice(s,e+1)); }catch(__){}
+    throw new Error("PARSE");
+  }
+}
+
+async function callGemini(prompt,d){
+  const obj=parseObj(await postGemini(prompt,rootSchema(d)));
+  const arr=obj.questions||obj.children||(Array.isArray(obj)?obj:null);
+  if(!Array.isArray(arr)) throw new Error("PARSE");
+  return arr.map(normalize);
+}
+async function callGeminiObj(prompt,schema){ return parseObj(await postGemini(prompt,schema)); }
+
+function normalize(n){
+  return { id:uid(), question:(n.question||n.q||"").toString().trim()||"（空の問い）",
+           children:Array.isArray(n.children)?n.children.map(normalize):[], collapsed:false,
+           answer:(n.answer!=null&&n.answer!=="")?String(n.answer):null,
+           answerOther:!!n.answerOther };
+}
+
+/* generic: run fn with one silent retry when it throws a PARSE error */
+async function withParseRetry(fn){
+  try{ return await fn(); }
+  catch(err){
+    if(err.message==="PARSE"){
+      try{ return await fn(); }
+      catch(err2){ const e=new Error("応答を構造化データとして解釈できませんでした（再試行後も失敗）。もう一度お試しください。"); e.kind="parse"; throw e; }
+    }
+    throw err;
+  }
+}
+async function callWithRetry(prompt,d){ return withParseRetry(()=>callGemini(prompt,d)); }
+
+/* ============================================================
+   Generate (full)
+   ============================================================ */
+async function generateFull(){
+  const theme=topicEl.value.trim();
+  if(!theme){ toast("お題を入力してください"); topicEl.focus(); return; }
+  if(recording && window.stopRec) window.stopRec();
+  state.topic=theme; state.loading=true; state.loadingMsg=""; state.lastError=null; state.activeHistId=null;
+  state.view="tree"; state.report=null; state.optionsCache={};
+  renderCanvas();
+  try{
+    const tree=await callWithRetry(buildPrompt(theme,state.depth),state.depth);
+    state.tree=tree; state.loading=false;
+    renderCanvas();
+    saveHistory();
+  }catch(err){
+    state.loading=false;
+    state.lastError={stage:"full",err};
+    renderCanvas();
+  }
+}
+$("#genBtn").onclick=generateFull;
+
+/* deep dive on a node */
+async function deepDive(node,btn){
+  const key=getKey();
+  if(!key){ toast("先にAPIキーを設定してください"); return; }
+  const n=parseInt(prompt(`「${node.question}」を起点に、さらに何階層 深掘りしますか？（1〜3）`,"1"),10);
+  if(!n||n<1)return;
+  const depth=Math.min(n,3);
+  btn.classList.add("busy");
+  try{
+    const kids=await callWithRetry(buildDivePrompt(node.question,depth),depth);
+    node.children=node.children.concat(kids);
+    node.collapsed=false;
+    renderCanvas(); saveHistory();
+    toast("深掘りを追加しました");
+  }catch(err){
+    toast(err.message||"深掘りに失敗しました");
+  }finally{ btn.classList.remove("busy"); }
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const canvasInner=$("#canvasInner");
+
+function renderCanvas(){
+  if(state.loading){ renderLoading(); return; }
+  if(state.lastError){ renderError(); return; }
+  if(state.view==="report" && state.report){ renderReport(); return; }
+  if(!state.tree){ renderEmpty(); return; }
+  renderTree();
+}
+
+function renderEmpty(){
+  canvasInner.innerHTML=`
+    <div class="empty">
+      <div class="mark">?</div>
+      <h2>問いを、構造で解きほぐす</h2>
+      <p>お題を入力し、階層数を選んで「ツリーを生成」を押すと、そのお題を解くために答えるべき問いが MECE に分解されます。各問いはさらに下位の問いへ枝分かれします。</p>
+      <div class="hint">
+        <span><b>音声</b> マイクで吹き込み</span>
+        <span><b>⌘/Ctrl + Enter</b> 生成</span>
+        <span><b>生成後</b> 編集・並べ替え・深掘り</span>
+      </div>
+    </div>`;
+}
+
+function renderLoading(){
+  const modelName=$("#model").selectedOptions[0]?.textContent||"";
+  const msg=state.loadingMsg||"問いの構造を生成しています…";
+  const sub=state.loadingMsg?esc(modelName):`${state.depth} 階層 / ${esc(modelName)}`;
+  canvasInner.innerHTML=`
+    <div class="loading">
+      <div class="spinner"></div>
+      <div class="msg">${esc(msg)}</div>
+      <div class="sub">${sub}</div>
+    </div>`;
+}
+
+function renderError(){
+  const {err,stage}=state.lastError;
+  if(err.kind==="local"){
+    canvasInner.innerHTML=`
+      <div class="errbox">
+        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>APIに接続できません（ローカルファイルのため）</h3>
+        <p>このHTMLを端末内のファイルとして開いているため、スマホのブラウザが Gemini への通信をブロックしています。ネット接続の問題ではありません。</p>
+        <p style="margin-top:10px"><b>解決方法：このファイルをネット上に公開し、その URL から開いてください。</b>バックエンドは不要で、APIキーは引き続きブラウザ内にのみ保存されます。</p>
+        <div class="detail">かんたんな公開手順（例）
+1. パソコンで Netlify Drop（app.netlify.com/drop）を開く
+2. このHTMLファイルをドラッグ&ドロップ
+3. 発行された https URL をスマホで開く
+（GitHub Pages / Cloudflare Pages / Vercel でも可）</div>
+        <button class="retry" id="retryBtn">再試行</button>
+      </div>`;
+    $("#retryBtn").onclick=()=>{ state.lastError=null; if(stage==="report")generateReport(); else if(stage==="options")startAnswering(); else generateFull(); };
+    return;
+  }
+  canvasInner.innerHTML=`
+    <div class="errbox">
+      <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>生成できませんでした</h3>
+      <p>${esc(err.message||"不明なエラーが発生しました。")}</p>
+      ${err.detail?`<div class="detail">${esc(String(err.detail).slice(0,400))}</div>`:""}
+      <button class="retry" id="retryBtn">再試行</button>
+    </div>`;
+  $("#retryBtn").onclick=()=>{
+    if(err.kind==="nokey"){ $("#settings").classList.remove("collapsed"); $("#apiKey").focus(); state.lastError=null; renderCanvas(); return; }
+    state.lastError=null;
+    if(stage==="report")generateReport(); else if(stage==="options")startAnswering(); else generateFull();
+  };
+}
+
+function renderTree(){
+  canvasInner.innerHTML="";
+  // toolbar
+  const tb=el("div","toolbar");
+  const leafCount=collectLeaves().length;
+  const answered=collectLeaves().filter(l=>l.node.answer).length;
+  const answerLabel = answered===0 ? "問いに答える"
+                    : answered<leafCount ? `回答を再開（${answered}/${leafCount}）`
+                    : "回答を見直す";
+  tb.innerHTML=`
+    <div class="root-chip"><span class="k">お題</span><span class="txt" title="${esc(state.topic)}">${esc(state.topic)}</span></div>
+    <button class="tool-btn primary" id="answerBtn" title="各問いに4択で答え、結論レポートを作成">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>${answerLabel}</button>
+    ${state.report?`<button class="tool-btn" id="viewReport" title="作成済みのレポートを表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>レポート</button>`:""}
+    <button class="tool-btn" id="expandAll" title="すべて展開/折りたたみ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>展開切替</button>
+    <button class="tool-btn" id="regen" title="同じお題・設定で作り直す">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>全体を再生成</button>
+    <button class="tool-btn" id="copyMd" title="Markdownでコピー">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Markdown</button>
+    <button class="tool-btn" id="dlJson" title="JSONで保存">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>JSON</button>`;
+  canvasInner.appendChild(tb);
+
+  const tree=el("div","tree");
+  state.tree.forEach(n=>tree.appendChild(renderNode(n,1,state.tree)));
+  canvasInner.appendChild(tree);
+
+  // root-level add
+  const addRoot=el("button","add-child");
+  addRoot.style.marginLeft="0";
+  addRoot.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>第1階層に問いを追加`;
+  addRoot.onclick=()=>{ const nn={id:uid(),question:"新しい問い？",children:[],collapsed:false}; state.tree.push(nn); renderCanvas(); saveHistory(); focusNode(nn.id); };
+  canvasInner.appendChild(addRoot);
+
+  // toolbar handlers
+  $("#answerBtn").onclick=startAnswering;
+  if($("#viewReport"))$("#viewReport").onclick=()=>{ state.view="report"; renderCanvas(); $("#canvas").scrollTop=0; };
+  $("#regen").onclick=()=>{ if(confirm("同じお題と階層数で作り直します。現在の編集内容と回答は失われます。よろしいですか？")) generateFull(); };
+  $("#copyMd").onclick=copyMarkdown;
+  $("#dlJson").onclick=downloadJson;
+  $("#expandAll").onclick=toggleExpandAll;
+}
+
+function renderNode(node,level,siblings){
+  const wrap=el("div","node"+(node.collapsed?" collapsed":""));
+  wrap.dataset.id=node.id;
+
+  const row=el("div","row");
+  const rl=el("div","row-line"); row.appendChild(rl);
+
+  const twist=el("button","twist"+(node.children.length?"":" empty"));
+  twist.innerHTML=`<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
+  twist.onclick=()=>{ node.collapsed=!node.collapsed; wrap.classList.toggle("collapsed"); saveHistory(); };
+  row.appendChild(twist);
+
+  const card=el("div","card"); card.dataset.id=node.id;
+
+  const lvl=el("div","lvl"); lvl.textContent="L"+level; lvl.title="ドラッグして移動"; lvl.draggable=true;
+  card.appendChild(lvl);
+
+  const q=el("div","q"); q.textContent=node.question; q.contentEditable="true"; q.spellcheck=false;
+  q.addEventListener("blur",()=>{ const v=q.textContent.trim(); node.question=v||"（空の問い）"; if(!v)q.textContent=node.question; saveHistory(); });
+  q.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); q.blur(); } });
+  card.appendChild(q);
+
+  const acts=el("div","node-acts");
+  acts.appendChild(mkAct("dive","深掘り（AIで下位の問いを追加）",
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z"/></svg>`,
+    (btn)=>deepDive(node,btn)));
+  acts.appendChild(mkAct("add","下位に問いを追加",
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+    ()=>{ const nn={id:uid(),question:"新しい問い？",children:[],collapsed:false}; node.children.push(nn); node.collapsed=false; renderCanvas(); saveHistory(); focusNode(nn.id); }));
+  acts.appendChild(mkAct("del","削除",
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    ()=>{ const hasKids=node.children.length; if(hasKids && !confirm("この問いと、その下位の問いすべてを削除します。よろしいですか？"))return; const i=siblings.indexOf(node); if(i>=0)siblings.splice(i,1); renderCanvas(); saveHistory(); }));
+  card.appendChild(acts);
+
+  setupDrag(card,lvl,node,siblings,wrap);
+
+  row.appendChild(card);
+  wrap.appendChild(row);
+
+  const kidsWrap=el("div","node-children");
+  node.children.forEach(c=>kidsWrap.appendChild(renderNode(c,level+1,node.children)));
+  if(node.children.length){
+    const addC=el("button","add-child");
+    addC.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>問いを追加`;
+    addC.onclick=()=>{ const nn={id:uid(),question:"新しい問い？",children:[],collapsed:false}; node.children.push(nn); renderCanvas(); saveHistory(); focusNode(nn.id); };
+    kidsWrap.appendChild(addC);
+  }
+  wrap.appendChild(kidsWrap);
+  return wrap;
+}
+
+function mkAct(cls,title,svg,fn){
+  const b=el("button","act "+cls); b.title=title; b.innerHTML=svg;
+  b.onclick=e=>{ e.stopPropagation(); fn(b); };
+  return b;
+}
+function focusNode(id){
+  requestAnimationFrame(()=>{
+    const q=document.querySelector(`.card[data-id="${id}"] .q`);
+    if(q){ q.focus(); document.getSelection().selectAllChildren(q); }
+  });
+}
+
+/* ---------- expand/collapse all ---------- */
+function toggleExpandAll(){
+  let anyOpen=false;
+  (function walk(ns){ ns.forEach(n=>{ if(n.children.length){ if(!n.collapsed)anyOpen=true; walk(n.children);} }); })(state.tree);
+  const collapse=anyOpen;
+  (function walk(ns){ ns.forEach(n=>{ if(n.children.length)n.collapsed=collapse; walk(n.children); }); })(state.tree);
+  renderCanvas(); saveHistory();
+}
+
+/* ============================================================
+   Drag & drop (reorder siblings + reparent)
+   ============================================================ */
+let dragCtx=null;
+function findParentList(id,list){
+  for(const n of list){
+    if(n.id===id)return list;
+    const f=findParentList(id,n.children);
+    if(f)return f;
+  }
+  return null;
+}
+function isDescendant(node,targetId){
+  if(node.id===targetId)return true;
+  return node.children.some(c=>isDescendant(c,targetId));
+}
+function findNode(id,list){
+  for(const n of list){ if(n.id===id)return n; const f=findNode(id,n.children); if(f)return f; }
+  return null;
+}
+
+function setupDrag(card,handle,node,siblings,wrap){
+  handle.addEventListener("dragstart",e=>{
+    dragCtx={id:node.id};
+    wrap.classList.add("dragging");
+    e.dataTransfer.effectAllowed="move";
+    try{e.dataTransfer.setData("text/plain",node.id);}catch(_){}
+    // use whole card as drag image
+    try{e.dataTransfer.setDragImage(card,20,18);}catch(_){}
+  });
+  handle.addEventListener("dragend",()=>{
+    wrap.classList.remove("dragging");
+    document.querySelectorAll(".card.drop-into,.card.drop-before,.card.drop-after").forEach(c=>c.classList.remove("drop-into","drop-before","drop-after"));
+    dragCtx=null;
+  });
+
+  card.addEventListener("dragover",e=>{
+    if(!dragCtx||dragCtx.id===node.id)return;
+    const dragNode=findNode(dragCtx.id,state.tree);
+    if(dragNode&&isDescendant(dragNode,node.id))return; // can't drop into own subtree
+    e.preventDefault(); e.dataTransfer.dropEffect="move";
+    const r=card.getBoundingClientRect();
+    const y=e.clientY-r.top, h=r.height;
+    card.classList.remove("drop-into","drop-before","drop-after");
+    if(y<h*0.28)card.classList.add("drop-before");
+    else if(y>h*0.72)card.classList.add("drop-after");
+    else card.classList.add("drop-into");
+  });
+  card.addEventListener("dragleave",()=>card.classList.remove("drop-into","drop-before","drop-after"));
+  card.addEventListener("drop",e=>{
+    if(!dragCtx||dragCtx.id===node.id)return;
+    e.preventDefault(); e.stopPropagation();
+    const mode=card.classList.contains("drop-into")?"into":card.classList.contains("drop-before")?"before":"after";
+    card.classList.remove("drop-into","drop-before","drop-after");
+    const dragNode=findNode(dragCtx.id,state.tree);
+    if(!dragNode||isDescendant(dragNode,node.id))return;
+    // remove from old list
+    const oldList=findParentList(dragCtx.id,state.tree);
+    if(!oldList)return;
+    oldList.splice(oldList.indexOf(dragNode),1);
+    if(mode==="into"){
+      node.children.push(dragNode); node.collapsed=false;
+    }else{
+      const list=findParentList(node.id,state.tree)||siblings;
+      let idx=list.indexOf(node);
+      if(mode==="after")idx+=1;
+      list.splice(idx,0,dragNode);
+    }
+    renderCanvas(); saveHistory();
+  });
+}
+
+/* ============================================================
+   Export: Markdown + JSON
+   ============================================================ */
+function toMarkdown(){
+  let out="# "+state.topic+"\n\n";
+  (function walk(ns,depth){
+    ns.forEach(n=>{
+      out+="  ".repeat(depth)+"- "+n.question+"\n";
+      walk(n.children,depth+1);
+    });
+  })(state.tree,0);
+  return out;
+}
+async function copyMarkdown(){
+  const md=toMarkdown();
+  try{ await navigator.clipboard.writeText(md); toast("Markdownをコピーしました"); }
+  catch(_){
+    const ta=el("textarea"); ta.value=md; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{document.execCommand("copy"); toast("Markdownをコピーしました");}catch(e){toast("コピーに失敗しました");}
+    ta.remove();
+  }
+}
+function downloadJson(){
+  const payload={ version:1, type:"question-tree", topic:state.topic, depth:state.depth,
+                  createdAt:new Date().toISOString(), tree:stripTree(state.tree) };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=el("a"); a.href=url;
+  a.download="qtree-"+(state.topic.slice(0,20).replace(/[\/\\:*?"<>|\s]+/g,"_")||"tree")+".json";
+  a.click(); URL.revokeObjectURL(url);
+  toast("JSONを保存しました");
+}
+function stripTree(ns){ return ns.map(n=>{ const o={question:n.question,children:stripTree(n.children)}; if(n.answer!=null&&n.answer!=="")o.answer=n.answer; if(n.answerOther)o.answerOther=true; return o; }); }
+
+/* ============================================================
+   History (localStorage)
+   ============================================================ */
+function loadHistArr(){ try{ return JSON.parse(localStorage.getItem(LS.HIST)||"[]"); }catch(_){ return []; } }
+function writeHistArr(a){ try{ localStorage.setItem(LS.HIST,JSON.stringify(a)); }catch(e){ toast("保存容量の上限に達しました。古い履歴を削除してください。"); } }
+
+function saveHistory(){
+  if(!state.tree)return;
+  const arr=loadHistArr();
+  const rec={ id:state.activeHistId||uid(), topic:state.topic, depth:state.depth,
+              updatedAt:Date.now(), tree:stripTree(state.tree) };
+  if(state.activeHistId){
+    const i=arr.findIndex(r=>r.id===state.activeHistId);
+    if(i>=0)arr[i]=rec; else arr.unshift(rec);
+  }else{
+    arr.unshift(rec); state.activeHistId=rec.id;
+  }
+  // cap at 60
+  if(arr.length>60)arr.length=60;
+  writeHistArr(arr);
+  renderHistory();
+}
+function renderHistory(){
+  const arr=loadHistArr();
+  const list=$("#histList"); list.innerHTML="";
+  $("#histCount").textContent=arr.length?arr.length:"";
+  if(!arr.length){ list.innerHTML=`<div class="hist-empty">まだ履歴はありません。お題を生成すると、ここに自動保存されます。</div>`; return; }
+  arr.forEach(r=>{
+    const it=el("div","hist-item"+(r.id===state.activeHistId?" active":""));
+    const main=el("div","hist-main");
+    const q=el("div","hist-q"); q.textContent=r.topic;
+    const meta=el("div","hist-meta"); meta.textContent=`${r.depth}層 · ${fmtDate(r.updatedAt)}`;
+    main.appendChild(q); main.appendChild(meta);
+    main.onclick=()=>openHistory(r.id);
+    const del=el("button","hist-del"); del.innerHTML="×"; del.title="削除";
+    del.onclick=e=>{ e.stopPropagation(); deleteHistory(r.id); };
+    it.appendChild(main); it.appendChild(del);
+    list.appendChild(it);
+  });
+}
+function fmtDate(ts){
+  const d=new Date(ts), now=new Date();
+  const p=n=>String(n).padStart(2,"0");
+  if(d.toDateString()===now.toDateString())return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+function openHistory(id){
+  const arr=loadHistArr();
+  const r=arr.find(x=>x.id===id); if(!r)return;
+  state.topic=r.topic; state.depth=r.depth; state.tree=r.tree.map(normalize);
+  state.activeHistId=id; state.lastError=null; state.loading=false;
+  state.view="tree"; state.report=null; state.answering=null; state.optionsCache={};
+  topicEl.value=r.topic; autosize(); buildSteps();
+  renderCanvas(); renderHistory();
+  $("#canvas").scrollTop=0;
+}
+function deleteHistory(id){
+  const arr=loadHistArr().filter(r=>r.id!==id);
+  writeHistArr(arr);
+  if(state.activeHistId===id){ state.activeHistId=null; }
+  renderHistory();
+}
+
+/* ============================================================
+   Answering flow: leaves -> options -> per-question modal -> report
+   ============================================================ */
+function collectLeaves(){
+  const out=[];
+  (function walk(ns,path){
+    ns.forEach(n=>{
+      if(n.children.length) walk(n.children,path.concat(n.question));
+      else out.push({node:n,path});
+    });
+  })(state.tree||[],[]);
+  return out;
+}
+
+function optionsSchema(count){
+  return {
+    type:"object",
+    properties:{ items:{ type:"array", minItems:count, maxItems:count, items:{
+      type:"object",
+      properties:{ index:{type:"integer"}, options:{ type:"array", minItems:4, maxItems:4, items:{type:"string"} } },
+      required:["index","options"], propertyOrdering:["index","options"]
+    } } },
+    required:["items"], propertyOrdering:["items"]
+  };
+}
+function buildOptionsPrompt(theme,leaves){
+  const lines=leaves.map((l,i)=>{
+    const ctx=l.path.length?`（文脈: ${l.path.join(" › ")}）`:"";
+    return `${i+1}. ${l.node.question} ${ctx}`;
+  }).join("\n");
+  return `あなたは意思決定を支援するアナリストです。あるテーマを分解した「問い」に対して、回答者が選べる現実的な選択肢を用意します。
+
+# テーマ（お題）
+${theme}
+
+# 各問いに対して行うこと
+下の番号付きの問いそれぞれについて、その問いへの答えとして考えられる、現実的で互いに明確に異なる選択肢を「ちょうど4つ」提示してください。
+- 各選択肢は簡潔（おおむね40字以内）で、具体的にする。
+- 4つは網羅的かつ重複しないようにし、代表的な立場・方向性をカバーする。
+- 日本語で書く。
+- 出力は items 配列とし、各要素の index に問いの番号（1始まり）、options に4つの選択肢を入れる。問いの番号と対応させること。
+
+# 問い一覧
+${lines}`;
+}
+
+async function startAnswering(){
+  if(!state.tree){ return; }
+  if(!getKey()){ toast("先にAPIキーを設定してください"); renderKeyBanner(); $("#keyBanner")?.scrollIntoView({behavior:"smooth"}); return; }
+  const leaves=collectLeaves();
+  if(!leaves.length){ toast("答える問いがありません"); return; }
+
+  // which leaves still need options?
+  const need=leaves.filter(l=>!state.optionsCache[l.node.id]);
+  if(need.length){
+    state.loading=true; state.loadingMsg="選択肢を生成しています…"; state.view="tree"; renderCanvas();
+    try{
+      const res=await withParseRetry(()=>callGeminiObj(buildOptionsPrompt(state.topic,need),optionsSchema(need.length)));
+      const items=Array.isArray(res.items)?res.items:[];
+      need.forEach((l,i)=>{
+        // map by index if valid, else by position
+        let it=items.find(x=>x.index===i+1);
+        if(!it||!Array.isArray(it.options)) it=items[i];
+        const opts=(it&&Array.isArray(it.options))?it.options.slice(0,4).map(s=>String(s)):[];
+        while(opts.length<4) opts.push("（選択肢"+(opts.length+1)+"）");
+        state.optionsCache[l.node.id]=opts;
+      });
+      state.loading=false;
+    }catch(err){
+      state.loading=false; state.lastError={stage:"options",err}; renderCanvas(); return;
+    }
+  }
+  // start at first unanswered (or 0)
+  let start=leaves.findIndex(l=>!l.node.answer);
+  if(start<0)start=0;
+  state.answering={ leaves, idx:start };
+  state.view="tree"; renderCanvas();
+  openQModal();
+}
+
+/* ---------- Question modal ---------- */
+const modalRoot=$("#modalRoot");
+function closeModal(){ modalRoot.innerHTML=""; modalRoot.classList.remove("show"); }
+
+function openQModal(){ renderQModal(); modalRoot.classList.add("show"); }
+
+function renderQModal(){
+  const A=state.answering; if(!A)return;
+  const total=A.leaves.length, idx=A.idx;
+  const {node,path}=A.leaves[idx];
+  const opts=state.optionsCache[node.id]||[];
+  const isCustom = node.answer!=null && !opts.includes(node.answer);
+  const pct=Math.round(((idx)/total)*100);
+
+  const crumb = path.length ? `<div class="qm-path">${path.map(esc).join(' <span class="sep">›</span> ')}</div>` : "";
+  const optHtml = opts.map((o,i)=>{
+    const sel = (!isCustom && node.answer===o) ? " sel" : "";
+    return `<button class="qm-opt${sel}" data-opt="${i}"><span class="qm-mark">${String.fromCharCode(65+i)}</span><span class="qm-otext">${esc(o)}</span></button>`;
+  }).join("");
+  const otherSel = isCustom ? " sel" : "";
+
+  modalRoot.innerHTML=`
+    <div class="qmodal" role="dialog" aria-modal="true">
+      <div class="qm-top">
+        <div class="qm-prog"><div class="qm-prog-bar" style="width:${pct}%"></div></div>
+        <div class="qm-count">設問 ${idx+1} / ${total}</div>
+        <button class="qm-close" id="qmClose" title="閉じる（回答は保存されます）">✕</button>
+      </div>
+      <div class="qm-body">
+        ${crumb}
+        <div class="qm-q">${esc(node.question)}</div>
+        <div class="qm-opts">
+          ${optHtml}
+          <button class="qm-opt qm-other${otherSel}" data-opt="other">
+            <span class="qm-mark">＋</span>
+            <span class="qm-otext">その他（自由に記述）</span>
+          </button>
+          <textarea class="qm-otherfield" id="qmOther" placeholder="自分の答えを入力…" style="display:${isCustom?'block':'none'}">${isCustom?esc(node.answer):""}</textarea>
+        </div>
+      </div>
+      <div class="qm-foot">
+        <button class="qm-btn ghost" id="qmBack" ${idx===0?"disabled":""}>← 戻る</button>
+        <div class="qm-foot-r">
+          <button class="qm-btn ghost" id="qmSkip" title="この問いを飛ばす">スキップ</button>
+          <button class="qm-btn primary" id="qmNext" ${node.answer?"":"disabled"}>${idx===total-1?"回答を完了 →":"次へ →"}</button>
+        </div>
+      </div>
+    </div>`;
+
+  const otherField=$("#qmOther");
+  const refreshNext=()=>{ $("#qmNext").disabled = !node.answer; };
+
+  modalRoot.querySelectorAll(".qm-opt").forEach(btn=>{
+    btn.onclick=()=>{
+      const which=btn.dataset.opt;
+      modalRoot.querySelectorAll(".qm-opt").forEach(b=>b.classList.remove("sel"));
+      btn.classList.add("sel");
+      if(which==="other"){
+        node.answerOther=true;
+        otherField.style.display="block"; otherField.focus();
+        node.answer=otherField.value.trim()||null;
+      }else{
+        node.answerOther=false;
+        otherField.style.display="none";
+        node.answer=opts[parseInt(which,10)];
+      }
+      refreshNext();
+    };
+  });
+  otherField.addEventListener("input",()=>{ node.answer=otherField.value.trim()||null; node.answerOther=true; refreshNext(); });
+
+  $("#qmClose").onclick=()=>{ saveHistory(); closeModal(); renderCanvas(); toast("回答を保存しました（続きから再開できます）"); };
+  $("#qmBack").onclick=()=>{ if(A.idx>0){ A.idx--; renderQModal(); } };
+  $("#qmSkip").onclick=()=>{ advance(); };
+  $("#qmNext").onclick=()=>{ if(!node.answer)return; advance(); };
+}
+
+function advance(){
+  const A=state.answering;
+  saveHistory();
+  if(A.idx < A.leaves.length-1){ A.idx++; renderQModal(); }
+  else {
+    // finished
+    const unanswered=A.leaves.filter(l=>!l.node.answer).length;
+    if(unanswered>0 && !confirm(`未回答が ${unanswered} 問あります。このままレポートを作成しますか？\n（「キャンセル」で最初の未回答に戻れます）`)){
+      const j=A.leaves.findIndex(l=>!l.node.answer); if(j>=0){ A.idx=j; renderQModal(); } return;
+    }
+    closeModal();
+    generateReport();
+  }
+}
+
+/* ============================================================
+   Report generation
+   ============================================================ */
+function reportSchema(){
+  return {
+    type:"object",
+    properties:{
+      title:{type:"string"},
+      overview:{type:"string"},
+      sections:{ type:"array", items:{
+        type:"object",
+        properties:{ heading:{type:"string"}, body:{type:"string"}, points:{type:"array",items:{type:"string"}} },
+        required:["heading","body"], propertyOrdering:["heading","body","points"]
+      } },
+      conclusion:{type:"string"}
+    },
+    required:["title","overview","sections","conclusion"],
+    propertyOrdering:["title","overview","sections","conclusion"]
+  };
+}
+function buildQAOutline(){
+  let out="";
+  (function walk(ns,depth){
+    ns.forEach(n=>{
+      out+="  ".repeat(depth)+"- "+n.question;
+      if(!n.children.length && n.answer) out+="  → 回答: "+n.answer;
+      else if(!n.children.length) out+="  → 回答: （未回答）";
+      out+="\n";
+      walk(n.children,depth+1);
+    });
+  })(state.tree,0);
+  return out;
+}
+function buildReportPrompt(){
+  return `あなたは戦略コンサルタントです。あるお題について、MECEに分解した問いと、それぞれへの回答が揃っています。これらを統合し、意思決定に使える読みやすいレポートを作成してください。
+
+# お題
+${state.topic}
+
+# 問いと回答（ツリー構造・インデントは階層）
+${buildQAOutline()}
+
+# 作成するレポートの要件
+- title: レポートの表題（お題に即した簡潔なもの）。
+- overview: 全体の概要（このお題で何を検討したか、回答全体から見える大枠）。2〜4文。
+- sections: 上位の問い（第1階層）ごと、または論理的なまとまりごとのセクション。各セクションは heading（見出し）、body（回答内容を根拠として統合した分析。具体的な回答に触れる）、points（任意で要点の箇条書き）を持つ。
+- conclusion: お題に対する明確な結論・推奨。回答から導ける最も妥当な答えを、理由とともに述べる。
+- すべて日本語。回答内容に基づき、事実と示唆を混同しない。回答が未回答の箇所は無理に断定しない。`;
+}
+async function generateReport(){
+  if(!getKey()){ toast("APIキーが必要です"); return; }
+  state.loading=true; state.loadingMsg="結論レポートを作成しています…"; state.view="tree"; state.lastError=null; renderCanvas();
+  try{
+    const rep=await withParseRetry(()=>callGeminiObj(buildReportPrompt(),reportSchema()));
+    rep.generatedAt=new Date().toISOString();
+    state.report=rep; state.loading=false; state.view="report";
+    renderCanvas(); saveHistory(); $("#canvas").scrollTop=0;
+  }catch(err){
+    state.loading=false; state.lastError={stage:"report",err}; renderCanvas();
+  }
+}
+
+/* ---------- Report rendering ---------- */
+function renderReport(){
+  const r=state.report;
+  canvasInner.innerHTML="";
+  const bar=el("div","report-actions");
+  bar.innerHTML=`
+    <button class="tool-btn" id="backToTree"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>ツリーに戻る</button>
+    <div class="spacer"></div>
+    <button class="tool-btn" id="regenReport" title="回答をもとに作り直す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>再作成</button>
+    <button class="tool-btn" id="dlReportMd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Markdown</button>
+    <button class="tool-btn primary" id="dlReportHtml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>HTMLで保存</button>
+    <button class="tool-btn" id="printReport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>印刷 / PDF</button>`;
+  canvasInner.appendChild(bar);
+
+  const rep=el("article","report");
+  rep.innerHTML=reportInnerHtml(r);
+  canvasInner.appendChild(rep);
+
+  $("#backToTree").onclick=()=>{ state.view="tree"; renderCanvas(); $("#canvas").scrollTop=0; };
+  $("#regenReport").onclick=()=>{ if(confirm("現在の回答をもとにレポートを作り直します。よろしいですか？")) generateReport(); };
+  $("#dlReportMd").onclick=downloadReportMd;
+  $("#dlReportHtml").onclick=downloadReportHtml;
+  $("#printReport").onclick=()=>window.print();
+}
+function reportInnerHtml(r){
+  const date=new Date(r.generatedAt||Date.now());
+  const dstr=`${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,"0")}.${String(date.getDate()).padStart(2,"0")}`;
+  const secs=(r.sections||[]).map((s,i)=>`
+    <section class="rp-sec">
+      <h2><span class="rp-num">${String(i+1).padStart(2,"0")}</span>${esc(s.heading||"")}</h2>
+      ${paras(s.body)}
+      ${Array.isArray(s.points)&&s.points.length?`<ul class="rp-points">${s.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`:""}
+    </section>`).join("");
+  return `
+    <header class="rp-head">
+      <div class="rp-eyebrow">結論レポート · ${dstr}</div>
+      <h1>${esc(r.title||state.topic)}</h1>
+      <div class="rp-topic"><span class="rp-k">お題</span>${esc(state.topic)}</div>
+    </header>
+    <div class="rp-overview">${paras(r.overview)}</div>
+    ${secs}
+    <section class="rp-conclusion">
+      <h2>結論</h2>
+      ${paras(r.conclusion)}
+    </section>
+    <details class="rp-appendix">
+      <summary>回答の一覧を見る</summary>
+      ${qaListHtml()}
+    </details>`;
+}
+function paras(text){ return String(text||"").split(/\n{2,}|\n/).filter(s=>s.trim()).map(p=>`<p>${esc(p)}</p>`).join(""); }
+function qaListHtml(){
+  const leaves=collectLeaves();
+  return `<ol class="rp-qa">${leaves.map(l=>`<li><div class="rp-qa-q">${esc(l.node.question)}</div><div class="rp-qa-a">${l.node.answer?esc(l.node.answer):'<span class="rp-na">未回答</span>'}</div></li>`).join("")}</ol>`;
+}
+
+/* ---------- Report downloads ---------- */
+function reportToMarkdown(){
+  const r=state.report; if(!r)return "";
+  let md=`# ${r.title||state.topic}\n\n`;
+  md+=`> お題: ${state.topic}\n\n`;
+  md+=`${r.overview||""}\n\n`;
+  (r.sections||[]).forEach((s,i)=>{
+    md+=`## ${i+1}. ${s.heading||""}\n\n${s.body||""}\n\n`;
+    if(Array.isArray(s.points)&&s.points.length){ s.points.forEach(p=>md+=`- ${p}\n`); md+="\n"; }
+  });
+  md+=`## 結論\n\n${r.conclusion||""}\n\n`;
+  md+=`---\n\n### 回答一覧\n\n`;
+  collectLeaves().forEach(l=>{ md+=`- **${l.node.question}**\n  - 回答: ${l.node.answer||"（未回答）"}\n`; });
+  return md;
+}
+function safeName(){ return (state.topic.slice(0,24).replace(/[\/\\:*?"<>|\s]+/g,"_")||"report"); }
+function triggerDownload(content,mime,ext){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=el("a"); a.href=url; a.download="report-"+safeName()+ext; a.click(); URL.revokeObjectURL(url);
+}
+function downloadReportMd(){ triggerDownload(reportToMarkdown(),"text/markdown;charset=utf-8",".md"); toast("Markdownを保存しました"); }
+function downloadReportHtml(){ triggerDownload(standaloneReportHtml(),"text/html;charset=utf-8",".html"); toast("HTMLを保存しました"); }
+
+function standaloneReportHtml(){
+  const r=state.report;
+  const body=reportInnerHtml(r);
+  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(r.title||state.topic)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1A2733;--muted:#5C6B78;--line:#D3DAE1;--accent:#C0722E;--paper:#F4F5F7;--soft:#FBF4EC}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;line-height:1.7;padding:48px 20px}
+.report{max-width:760px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:52px 56px;box-shadow:0 10px 40px rgba(20,35,50,.06)}
+.rp-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-family:"Newsreader",serif;font-weight:600;font-size:34px;line-height:1.25;margin:0 0 18px}
+.rp-topic{font-size:14px;color:var(--muted);display:flex;gap:9px;align-items:baseline;border-left:2px solid var(--accent);padding-left:12px;margin-bottom:8px}
+.rp-k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);flex:none}
+.rp-overview{font-family:"Newsreader",serif;font-size:18px;line-height:1.75;color:#28323c;background:var(--soft);border-radius:10px;padding:20px 24px;margin:26px 0 34px}
+.rp-overview p{margin:0 0 10px}.rp-overview p:last-child{margin:0}
+.rp-sec{margin:30px 0}
+h2{font-size:19px;font-weight:600;margin:0 0 12px;display:flex;align-items:baseline;gap:12px}
+.rp-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);font-weight:500}
+.report p{margin:0 0 12px;font-size:15px}
+.rp-points{margin:8px 0 0;padding-left:20px}.rp-points li{font-size:14.5px;margin:5px 0;color:#33404b}
+.rp-conclusion{margin:38px 0 8px;background:#16202B;color:#EAF0F5;border-radius:12px;padding:26px 30px}
+.rp-conclusion h2{color:#fff}.rp-conclusion p{font-size:15.5px;color:#DCE5EC}
+.rp-conclusion h2::before{content:"結論";}
+.rp-appendix{margin-top:34px;border-top:1px solid var(--line);padding-top:18px}
+summary{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);cursor:pointer;letter-spacing:.04em}
+.rp-qa{margin:16px 0 0;padding:0;list-style:none;counter-reset:qa}
+.rp-qa li{padding:10px 0;border-bottom:1px solid var(--line)}
+.rp-qa-q{font-family:"Newsreader",serif;font-size:15px;color:var(--ink);margin-bottom:3px}
+.rp-qa-a{font-size:13.5px;color:var(--accent)}
+.rp-na{color:#9aa6b0}
+@media print{body{background:#fff;padding:0}.report{border:none;box-shadow:none;border-radius:0;max-width:none;padding:24px}}
+</style></head><body><article class="report">${body.replace('<h2>結論</h2>','<h2></h2>')}</article></body></html>`;
+}
+loadSettings();
+buildSteps();
+autosize();
+renderHistory();
+renderCanvas();
+</script>
+</body>
+</html>
