@@ -439,6 +439,7 @@
   .qm-close:hover{background:var(--paper-2);color:var(--ink)}
   .qm-body{padding:24px 26px 8px;overflow-y:auto}
   .qm-path{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted-2);margin-bottom:12px;line-height:1.6}
+  .qm-note{font-size:12.5px;line-height:1.6;color:#8A5A2A;background:var(--accent-soft);border-radius:9px;padding:10px 13px;margin-bottom:14px}
   .qm-path .sep{color:var(--line-strong);margin:0 3px}
   .qm-q{font-family:"Newsreader",serif;font-size:23px;line-height:1.4;color:var(--ink);margin-bottom:22px}
   .qm-opts{display:flex;flex-direction:column;gap:9px}
@@ -640,7 +641,8 @@ let state = {
   loadingMsg: "",
   lastError: null,     // {stage, err}
   view: "tree",        // 'tree' | 'report'
-  answering: null,     // {leaves:[{node,path}], idx}
+  modal: null,         // generic step-modal session
+  premises: [],        // [{q,a}] established premises for current topic
   optionsCache: {},    // nodeId -> [4 options]
   report: null,        // generated report object
 };
@@ -802,7 +804,12 @@ function rootSchema(d){
   };
 }
 
-function buildPrompt(theme,d){
+function premiseBlock(premises){
+  if(!premises||!premises.length) return "";
+  const lines=premises.map(p=>`- ${p.q} → ${p.a}`).join("\n");
+  return `\n\n# 明確化された前提（これらを踏まえて分解する）\n${lines}`;
+}
+function buildPrompt(theme,d,premises){
   return `あなたはMECE（漏れなく・ダブりなく）による論点分解の専門家です。
 以下の「お題」を出発点として、それを解き明かすために答えるべき下位の「問い」を、問いの構造ツリーとして洗い出してください。
 
@@ -813,6 +820,37 @@ function buildPrompt(theme,d){
 - 同じ親を持つ兄弟の問いは、粒度・抽象度をそろえ、互いに重複させない。
 - ちょうど ${d} 階層の深さまで展開する（お題自身は階層に数えない）。すべての枝を ${d} 階層まで一律に展開する。
 - 日本語で、簡潔かつ具体的な問いにする。
+- 下記の前提がある場合は、それに沿って分解の範囲・粒度を具体化する。
+
+# お題
+${theme}${premiseBlock(premises)}`;
+}
+
+/* ---- premise clarification ---- */
+function clarifySchema(){
+  return {
+    type:"object",
+    properties:{
+      needsClarification:{type:"boolean"},
+      questions:{ type:"array", items:{
+        type:"object",
+        properties:{ question:{type:"string"}, options:{ type:"array", minItems:4, maxItems:4, items:{type:"string"} } },
+        required:["question","options"], propertyOrdering:["question","options"]
+      } }
+    },
+    required:["needsClarification","questions"],
+    propertyOrdering:["needsClarification","questions"]
+  };
+}
+function buildClarifyPrompt(theme){
+  return `あなたは問題設定（イシュー設定）の専門家です。次の「お題」について、問いの構造ツリー（MECEな分解）を作る前に、明確にしておくべき前提が不足していないかを判断してください。
+
+# 判断と出力
+- お題が十分に具体的で、前提を確認しなくても質の高い分解ができるなら、needsClarification を false、questions を空配列にする。
+- 前提が不足している場合は needsClarification を true とし、前提を明確にするための質問を MECE（互いに重複せず、重要な前提を漏れなく）に洗い出す。本当に必要なものだけに絞り、多くても5問程度にする。
+- 前提を問う観点の例: 目的・ゴール、対象範囲、対象者や立場、期間・時間軸、制約条件（予算・資源など）、前提となる状況や環境。お題に関係する観点だけを選ぶ。
+- 各質問には、回答者が選べる現実的な選択肢をちょうど4つ用意する（簡潔・具体的で、互いに明確に異なる）。回答者は別途「その他（自由記述）」も選べる前提でよい。
+- すべて日本語。
 
 # お題
 ${theme}`;
@@ -918,26 +956,64 @@ async function withParseRetry(fn){
 async function callWithRetry(prompt,d){ return withParseRetry(()=>callGemini(prompt,d)); }
 
 /* ============================================================
-   Generate (full)
+   Generate: clarify premises -> build tree
    ============================================================ */
 async function generateFull(){
   const theme=topicEl.value.trim();
   if(!theme){ toast("お題を入力してください"); topicEl.focus(); return; }
   if(recording && window.stopRec) window.stopRec();
-  state.topic=theme; state.loading=true; state.loadingMsg=""; state.lastError=null; state.activeHistId=null;
-  state.view="tree"; state.report=null; state.optionsCache={};
+  state.topic=theme; state.loading=true; state.loadingMsg="前提を確認しています…"; state.lastError=null; state.activeHistId=null;
+  state.view="tree"; state.report=null; state.optionsCache={}; state.premises=[];
   renderCanvas();
   try{
-    const tree=await callWithRetry(buildPrompt(theme,state.depth),state.depth);
+    const clar=await withParseRetry(()=>callGeminiObj(buildClarifyPrompt(theme),clarifySchema()));
+    const qs=(clar&&clar.needsClarification&&Array.isArray(clar.questions))?clar.questions.filter(q=>q&&q.question):[];
+    if(qs.length){
+      state.loading=false;
+      const items=qs.slice(0,5).map(q=>{
+        const opts=(Array.isArray(q.options)?q.options.slice(0,4).map(s=>String(s)):[]);
+        while(opts.length<4) opts.push("（選択肢"+(opts.length+1)+"）");
+        return { question:String(q.question), path:[], options:opts, answer:null, answerOther:false };
+      });
+      renderCanvas();
+      openModal({
+        kind:"premise",
+        headerLabel:"前提の明確化",
+        countLabel:"前提",
+        note:"お題の前提を明確にするための質問です。答えると、その前提を踏まえて問いを構造化します。",
+        items, idx:0,
+        finishLabel:"前提を確定して生成 →",
+        onFinish:()=>{
+          state.premises=items.filter(i=>i.answer).map(i=>({q:i.question,a:i.answer}));
+          proceedTreeGeneration(theme,state.premises);
+        },
+        onClose:()=>{ state.loading=false; renderCanvas(); }
+      });
+      return;
+    }
+    // no clarification needed
+    proceedTreeGeneration(theme,[]);
+  }catch(err){
+    state.loading=false; state.lastError={stage:"clarify",err}; renderCanvas();
+  }
+}
+
+async function proceedTreeGeneration(theme,premises){
+  state.topic=theme; state.premises=premises||[]; state.loading=true; state.loadingMsg="問いの構造を生成しています…";
+  state.lastError=null; state.view="tree"; renderCanvas();
+  try{
+    const tree=await callWithRetry(buildPrompt(theme,state.depth,state.premises),state.depth);
     state.tree=tree; state.loading=false;
     renderCanvas();
     saveHistory();
   }catch(err){
-    state.loading=false;
-    state.lastError={stage:"full",err};
-    renderCanvas();
+    state.loading=false; state.lastError={stage:"full",err}; renderCanvas();
   }
 }
+
+/* regenerate the tree reusing already-established premises (skips clarify) */
+function regenerate(){ proceedTreeGeneration(state.topic,state.premises); }
+
 $("#genBtn").onclick=generateFull;
 
 /* deep dive on a node */
@@ -1013,7 +1089,7 @@ function renderError(){
 （GitHub Pages / Cloudflare Pages / Vercel でも可）</div>
         <button class="retry" id="retryBtn">再試行</button>
       </div>`;
-    $("#retryBtn").onclick=()=>{ state.lastError=null; if(stage==="report")generateReport(); else if(stage==="options")startAnswering(); else generateFull(); };
+    $("#retryBtn").onclick=()=>{ state.lastError=null; retryByStage(stage); };
     return;
   }
   canvasInner.innerHTML=`
@@ -1025,9 +1101,14 @@ function renderError(){
     </div>`;
   $("#retryBtn").onclick=()=>{
     if(err.kind==="nokey"){ $("#settings").classList.remove("collapsed"); $("#apiKey").focus(); state.lastError=null; renderCanvas(); return; }
-    state.lastError=null;
-    if(stage==="report")generateReport(); else if(stage==="options")startAnswering(); else generateFull();
+    state.lastError=null; retryByStage(stage);
   };
+}
+function retryByStage(stage){
+  if(stage==="report") generateReport();
+  else if(stage==="options") startAnswering();
+  else if(stage==="full") proceedTreeGeneration(state.topic,state.premises);
+  else generateFull(); // clarify or unknown -> start from the top
 }
 
 function renderTree(){
@@ -1068,7 +1149,7 @@ function renderTree(){
   // toolbar handlers
   $("#answerBtn").onclick=startAnswering;
   if($("#viewReport"))$("#viewReport").onclick=()=>{ state.view="report"; renderCanvas(); $("#canvas").scrollTop=0; };
-  $("#regen").onclick=()=>{ if(confirm("同じお題と階層数で作り直します。現在の編集内容と回答は失われます。よろしいですか？")) generateFull(); };
+  $("#regen").onclick=()=>{ if(confirm("同じお題・前提・階層数でツリーを作り直します。現在の編集内容と回答は失われます。よろしいですか？")) regenerate(); };
   $("#copyMd").onclick=copyMarkdown;
   $("#dlJson").onclick=downloadJson;
   $("#expandAll").onclick=toggleExpandAll;
@@ -1263,7 +1344,7 @@ function saveHistory(){
   if(!state.tree)return;
   const arr=loadHistArr();
   const rec={ id:state.activeHistId||uid(), topic:state.topic, depth:state.depth,
-              updatedAt:Date.now(), tree:stripTree(state.tree) };
+              premises:state.premises||[], updatedAt:Date.now(), tree:stripTree(state.tree) };
   if(state.activeHistId){
     const i=arr.findIndex(r=>r.id===state.activeHistId);
     if(i>=0)arr[i]=rec; else arr.unshift(rec);
@@ -1304,7 +1385,8 @@ function openHistory(id){
   const r=arr.find(x=>x.id===id); if(!r)return;
   state.topic=r.topic; state.depth=r.depth; state.tree=r.tree.map(normalize);
   state.activeHistId=id; state.lastError=null; state.loading=false;
-  state.view="tree"; state.report=null; state.answering=null; state.optionsCache={};
+  state.view="tree"; state.report=null; state.modal=null; state.optionsCache={};
+  state.premises=Array.isArray(r.premises)?r.premises:[];
   topicEl.value=r.topic; autosize(); buildSteps();
   renderCanvas(); renderHistory();
   $("#canvas").scrollTop=0;
@@ -1388,65 +1470,91 @@ async function startAnswering(){
       state.loading=false; state.lastError={stage:"options",err}; renderCanvas(); return;
     }
   }
-  // start at first unanswered (or 0)
+  // build modal items that read/write answers directly on the leaf nodes
   let start=leaves.findIndex(l=>!l.node.answer);
   if(start<0)start=0;
-  state.answering={ leaves, idx:start };
+  const items=leaves.map(l=>({
+    node:l.node, question:l.node.question, path:l.path, options:state.optionsCache[l.node.id]||[],
+    get answer(){return this.node.answer}, set answer(v){this.node.answer=v},
+    get answerOther(){return this.node.answerOther}, set answerOther(v){this.node.answerOther=v}
+  }));
   state.view="tree"; renderCanvas();
-  openQModal();
+  openModal({
+    kind:"answer",
+    countLabel:"設問",
+    items, idx:start,
+    finishLabel:"回答を完了 →",
+    onChange:()=>saveHistory(),
+    onClose:()=>{ saveHistory(); renderCanvas(); toast("回答を保存しました（続きから再開できます）"); },
+    validateFinish:()=>{
+      const un=items.filter(i=>!i.answer).length;
+      if(un>0 && !confirm(`未回答が ${un} 問あります。このままレポートを作成しますか？\n（「キャンセル」で最初の未回答に戻れます）`)){
+        const j=items.findIndex(i=>!i.answer); return {jumpTo:j>=0?j:0};
+      }
+      return {ok:true};
+    },
+    onFinish:()=>generateReport()
+  });
 }
 
-/* ---------- Question modal ---------- */
+/* ============================================================
+   Generic step modal (used for premise clarification & answering)
+   ============================================================ */
 const modalRoot=$("#modalRoot");
-function closeModal(){ modalRoot.innerHTML=""; modalRoot.classList.remove("show"); }
+function closeModal(){ modalRoot.innerHTML=""; modalRoot.classList.remove("show"); state.modal=null; }
+function openModal(session){ state.modal=session; modalRoot.classList.add("show"); renderModal(); }
 
-function openQModal(){ renderQModal(); modalRoot.classList.add("show"); }
+function renderModal(){
+  const M=state.modal; if(!M)return;
+  const total=M.items.length, idx=M.idx, it=M.items[idx];
+  const opts=it.options||[];
+  const isCustom = it.answer!=null && !opts.includes(it.answer);
+  const pct=Math.round((idx/total)*100);
+  const countLabel=M.countLabel||"設問";
+  const isLast = idx===total-1;
 
-function renderQModal(){
-  const A=state.answering; if(!A)return;
-  const total=A.leaves.length, idx=A.idx;
-  const {node,path}=A.leaves[idx];
-  const opts=state.optionsCache[node.id]||[];
-  const isCustom = node.answer!=null && !opts.includes(node.answer);
-  const pct=Math.round(((idx)/total)*100);
-
-  const crumb = path.length ? `<div class="qm-path">${path.map(esc).join(' <span class="sep">›</span> ')}</div>` : "";
+  const crumb = (it.path && it.path.length)
+      ? `<div class="qm-path">${it.path.map(esc).join(' <span class="sep">›</span> ')}</div>`
+      : (M.headerLabel ? `<div class="qm-path">${esc(M.headerLabel)}</div>` : "");
+  const note = (idx===0 && M.note) ? `<div class="qm-note">${esc(M.note)}</div>` : "";
   const optHtml = opts.map((o,i)=>{
-    const sel = (!isCustom && node.answer===o) ? " sel" : "";
+    const sel = (!isCustom && it.answer===o) ? " sel" : "";
     return `<button class="qm-opt${sel}" data-opt="${i}"><span class="qm-mark">${String.fromCharCode(65+i)}</span><span class="qm-otext">${esc(o)}</span></button>`;
   }).join("");
   const otherSel = isCustom ? " sel" : "";
+  const nextLabel = isLast ? (M.finishLabel||"完了 →") : "次へ →";
 
   modalRoot.innerHTML=`
     <div class="qmodal" role="dialog" aria-modal="true">
       <div class="qm-top">
         <div class="qm-prog"><div class="qm-prog-bar" style="width:${pct}%"></div></div>
-        <div class="qm-count">設問 ${idx+1} / ${total}</div>
-        <button class="qm-close" id="qmClose" title="閉じる（回答は保存されます）">✕</button>
+        <div class="qm-count">${esc(countLabel)} ${idx+1} / ${total}</div>
+        <button class="qm-close" id="qmClose" title="閉じる">✕</button>
       </div>
       <div class="qm-body">
+        ${note}
         ${crumb}
-        <div class="qm-q">${esc(node.question)}</div>
+        <div class="qm-q">${esc(it.question)}</div>
         <div class="qm-opts">
           ${optHtml}
           <button class="qm-opt qm-other${otherSel}" data-opt="other">
             <span class="qm-mark">＋</span>
             <span class="qm-otext">その他（自由に記述）</span>
           </button>
-          <textarea class="qm-otherfield" id="qmOther" placeholder="自分の答えを入力…" style="display:${isCustom?'block':'none'}">${isCustom?esc(node.answer):""}</textarea>
+          <textarea class="qm-otherfield" id="qmOther" placeholder="自分の答えを入力…" style="display:${isCustom?'block':'none'}">${isCustom?esc(it.answer):""}</textarea>
         </div>
       </div>
       <div class="qm-foot">
         <button class="qm-btn ghost" id="qmBack" ${idx===0?"disabled":""}>← 戻る</button>
         <div class="qm-foot-r">
           <button class="qm-btn ghost" id="qmSkip" title="この問いを飛ばす">スキップ</button>
-          <button class="qm-btn primary" id="qmNext" ${node.answer?"":"disabled"}>${idx===total-1?"回答を完了 →":"次へ →"}</button>
+          <button class="qm-btn primary" id="qmNext" ${it.answer?"":"disabled"}>${nextLabel}</button>
         </div>
       </div>
     </div>`;
 
   const otherField=$("#qmOther");
-  const refreshNext=()=>{ $("#qmNext").disabled = !node.answer; };
+  const refreshNext=()=>{ $("#qmNext").disabled = !it.answer; };
 
   modalRoot.querySelectorAll(".qm-opt").forEach(btn=>{
     btn.onclick=()=>{
@@ -1454,38 +1562,32 @@ function renderQModal(){
       modalRoot.querySelectorAll(".qm-opt").forEach(b=>b.classList.remove("sel"));
       btn.classList.add("sel");
       if(which==="other"){
-        node.answerOther=true;
+        it.answerOther=true;
         otherField.style.display="block"; otherField.focus();
-        node.answer=otherField.value.trim()||null;
+        it.answer=otherField.value.trim()||null;
       }else{
-        node.answerOther=false;
+        it.answerOther=false;
         otherField.style.display="none";
-        node.answer=opts[parseInt(which,10)];
+        it.answer=opts[parseInt(which,10)];
       }
       refreshNext();
     };
   });
-  otherField.addEventListener("input",()=>{ node.answer=otherField.value.trim()||null; node.answerOther=true; refreshNext(); });
+  otherField.addEventListener("input",()=>{ it.answer=otherField.value.trim()||null; it.answerOther=true; refreshNext(); });
 
-  $("#qmClose").onclick=()=>{ saveHistory(); closeModal(); renderCanvas(); toast("回答を保存しました（続きから再開できます）"); };
-  $("#qmBack").onclick=()=>{ if(A.idx>0){ A.idx--; renderQModal(); } };
-  $("#qmSkip").onclick=()=>{ advance(); };
-  $("#qmNext").onclick=()=>{ if(!node.answer)return; advance(); };
+  $("#qmClose").onclick=()=>{ closeModal(); if(M.onClose)M.onClose(); };
+  $("#qmBack").onclick=()=>{ if(M.idx>0){ M.idx--; renderModal(); } };
+  $("#qmSkip").onclick=()=>{ modalAdvance(); };
+  $("#qmNext").onclick=()=>{ if(!it.answer)return; modalAdvance(); };
 }
 
-function advance(){
-  const A=state.answering;
-  saveHistory();
-  if(A.idx < A.leaves.length-1){ A.idx++; renderQModal(); }
-  else {
-    // finished
-    const unanswered=A.leaves.filter(l=>!l.node.answer).length;
-    if(unanswered>0 && !confirm(`未回答が ${unanswered} 問あります。このままレポートを作成しますか？\n（「キャンセル」で最初の未回答に戻れます）`)){
-      const j=A.leaves.findIndex(l=>!l.node.answer); if(j>=0){ A.idx=j; renderQModal(); } return;
-    }
-    closeModal();
-    generateReport();
-  }
+function modalAdvance(){
+  const M=state.modal; if(!M)return;
+  if(M.onChange)M.onChange();
+  if(M.idx < M.items.length-1){ M.idx++; renderModal(); return; }
+  if(M.validateFinish){ const r=M.validateFinish(); if(r && r.jumpTo!=null){ M.idx=r.jumpTo; renderModal(); return; } }
+  closeModal();
+  if(M.onFinish)M.onFinish();
 }
 
 /* ============================================================
@@ -1525,7 +1627,7 @@ function buildReportPrompt(){
   return `あなたは戦略コンサルタントです。あるお題について、MECEに分解した問いと、それぞれへの回答が揃っています。これらを統合し、意思決定に使える読みやすいレポートを作成してください。
 
 # お題
-${state.topic}
+${state.topic}${premiseBlock(state.premises)}
 
 # 問いと回答（ツリー構造・インデントは階層）
 ${buildQAOutline()}
