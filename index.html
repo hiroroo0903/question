@@ -3,1875 +3,1457 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>問いの構造ツリー</title>
+<title>思考の分岐 — ロジックツリー意思決定ツール</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#EDF0F3;
-    --paper-2:#E4E9EE;
-    --panel:#16202B;
-    --panel-2:#1E2C3A;
-    --ink:#1A2733;
-    --muted:#5C6B78;
-    --muted-2:#8595A2;
-    --line:#D3DAE1;
-    --line-strong:#C0CAD3;
-    --accent:#C0722E;
-    --accent-hi:#D98A44;
-    --accent-soft:#F0DFCB;
-    --panel-line:#2C3E4F;
-    --panel-muted:#7E93A5;
-    --danger:#B04A3E;
-    --ok:#3E7D6B;
-    --shadow:0 1px 2px rgba(20,35,50,.06),0 6px 20px rgba(20,35,50,.08);
-    --radius:9px;
+    --bg:#E9EDF3; --surface:#FFFFFF; --surface-2:#F3F6FB; --surface-3:#EBEFF6;
+    --ink:#191F30; --muted:#5C6579; --faint:#8A93A6;
+    --line:#D3DAE7; --line-strong:#BDC6D8;
+    --accent:#3A4BC0; --accent-2:#5566D6; --accent-soft:#E5E8FA; --accent-tint:#F0F2FC;
+    --amber:#A76A10; --amber-soft:#FAEFD9;
+    --green:#1E7A59; --green-soft:#E1F1EA;
+    --red:#BC4137; --red-soft:#FAE7E4;
+    --shadow:0 1px 2px rgba(25,31,48,.06),0 6px 20px rgba(25,31,48,.06);
+    --shadow-lg:0 12px 40px rgba(25,31,48,.14);
+    --r:12px; --r-sm:8px;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
+  html,body{margin:0;padding:0}
   body{
-    margin:0;
-    font-family:"Space Grotesk",system-ui,sans-serif;
-    color:var(--ink);
-    background:var(--paper);
-    -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
+    background:var(--bg); color:var(--ink);
+    font-family:"Inter",system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased;
   }
+  h1,h2,h3,.display{font-family:"Space Grotesk","Inter",system-ui,sans-serif;letter-spacing:-.01em}
   button{font-family:inherit;cursor:pointer}
-  input,select,textarea{font-family:inherit}
+  input,textarea,select{font-family:inherit;font-size:15px;color:var(--ink)}
+  ::selection{background:var(--accent-soft)}
 
-  /* ---------- Layout ---------- */
-  .app{display:grid;grid-template-columns:288px 1fr;height:100vh;overflow:hidden}
+  /* ---------- shell ---------- */
+  .app{max-width:1040px;margin:0 auto;padding:0 20px 80px}
+  header.top{
+    position:sticky;top:0;z-index:40;background:rgba(233,237,243,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);margin-bottom:28px;
+  }
+  .top-in{max-width:1040px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:16px}
+  .brand{display:flex;align-items:center;gap:11px;font-family:"Space Grotesk";font-weight:600}
+  .glyph{width:26px;height:26px;flex:none}
+  .brand .name{font-size:16px;letter-spacing:-.02em}
+  .brand .sub{font-size:11.5px;color:var(--faint);font-weight:500;font-family:"Inter";letter-spacing:0}
+  .top-spacer{flex:1}
+  .ghost-btn{
+    background:transparent;border:1px solid var(--line-strong);color:var(--muted);
+    padding:7px 13px;border-radius:99px;font-size:13px;font-weight:500;display:inline-flex;gap:7px;align-items:center;
+    transition:.15s;
+  }
+  .ghost-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-tint)}
 
-  /* ---------- Sidebar ---------- */
-  .side{
-    background:var(--panel);
-    color:#E7EDF2;
-    display:flex;flex-direction:column;
-    border-right:1px solid var(--panel-line);
-    min-height:0;
+  /* ---------- step rail ---------- */
+  .rail{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:26px}
+  .rail .step{
+    display:flex;align-items:center;gap:9px;padding:6px 4px;color:var(--faint);font-size:12.5px;font-weight:500;
+    flex:1;min-width:0;
   }
-  .brand{
-    padding:20px 20px 18px;
-    border-bottom:1px solid var(--panel-line);
+  .rail .dot{
+    width:22px;height:22px;border-radius:99px;border:1.5px solid var(--line-strong);
+    display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--faint);
+    font-family:"Space Grotesk";flex:none;background:var(--surface);transition:.2s;
   }
-  .brand .glyph{
-    font-family:"Newsreader",serif;
-    font-size:30px;font-weight:600;font-style:italic;
-    color:var(--accent-hi);
-    line-height:1;
-  }
-  .brand h1{
-    font-size:15px;font-weight:600;letter-spacing:.02em;
-    margin:10px 0 3px;color:#EEF3F7;
-  }
-  .brand p{
-    margin:0;font-size:11px;color:var(--panel-muted);
-    font-family:"IBM Plex Mono",monospace;letter-spacing:.02em;
-  }
+  .rail .label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rail .step.done .dot{border-color:var(--accent);color:var(--accent);background:var(--accent-tint)}
+  .rail .step.active .dot{border-color:var(--accent);background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-tint)}
+  .rail .step.active{color:var(--ink);font-weight:600}
+  .rail .step.done{color:var(--muted)}
+  @media(max-width:680px){.rail .label{display:none}.rail .step{flex:none}}
 
-  .side-scroll{flex:1;overflow-y:auto;min-height:0;padding:8px 12px 12px}
-  .side-scroll::-webkit-scrollbar{width:8px}
-  .side-scroll::-webkit-scrollbar-thumb{background:#31465A;border-radius:8px}
+  /* ---------- cards / typography ---------- */
+  .screen{display:none;animation:rise .35s cubic-bezier(.2,.7,.3,1)}
+  .screen.on{display:block}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:26px}
+  .card + .card{margin-top:18px}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-family:"Inter"}
+  h2.title{font-size:26px;font-weight:600;margin:8px 0 4px;letter-spacing:-.02em}
+  .lede{color:var(--muted);font-size:14.5px;margin:0}
+  .hero{padding:34px 30px 30px;background:
+     radial-gradient(120% 130% at 100% 0%, var(--accent-tint) 0%, transparent 45%),var(--surface)}
 
-  .rail-label{
-    font-family:"IBM Plex Mono",monospace;
-    font-size:10px;letter-spacing:.14em;text-transform:uppercase;
-    color:var(--panel-muted);
-    padding:14px 8px 8px;display:flex;align-items:center;justify-content:space-between;
+  /* ---------- form ---------- */
+  .field{margin-bottom:16px}
+  .field > label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--ink)}
+  .field .hint{font-size:12px;color:var(--faint);font-weight:400;margin-left:6px}
+  .input,textarea.input,select.input{
+    width:100%;padding:11px 13px;border:1px solid var(--line-strong);border-radius:var(--r-sm);
+    background:var(--surface-2);transition:.15s;color:var(--ink);
   }
-  .rail-label span.count{color:#54697C}
+  .input:focus,textarea.input:focus,select.input:focus{
+    outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-tint)
+  }
+  textarea.input{resize:vertical;min-height:96px;line-height:1.55}
+  .key-row{display:flex;gap:8px}
+  .key-row .input{flex:1}
+  .icon-btn{
+    border:1px solid var(--line-strong);background:var(--surface-2);border-radius:var(--r-sm);
+    width:44px;display:grid;place-items:center;color:var(--muted);transition:.15s
+  }
+  .icon-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+  .check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}
+  .check input{width:16px;height:16px;accent-color:var(--accent)}
+  .stepper{display:flex;align-items:center;gap:0;border:1px solid var(--line-strong);border-radius:var(--r-sm);overflow:hidden;width:fit-content;background:var(--surface-2)}
+  .stepper button{width:38px;height:40px;border:none;background:transparent;font-size:18px;color:var(--muted);line-height:1}
+  .stepper button:hover{background:var(--accent-tint);color:var(--accent)}
+  .stepper .val{width:44px;text-align:center;font-weight:600;font-family:"Space Grotesk";font-size:16px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .stepper .range{font-size:11px;color:var(--faint);margin-left:10px}
 
-  .hist-empty{
-    color:var(--panel-muted);font-size:12px;line-height:1.6;
-    padding:6px 10px 12px;
+  .primary-btn{
+    background:var(--accent);color:#fff;border:none;padding:13px 22px;border-radius:99px;
+    font-size:15px;font-weight:600;display:inline-flex;align-items:center;gap:9px;transition:.15s;
+    box-shadow:0 4px 14px rgba(58,75,192,.28)
   }
-  .hist-item{
-    background:transparent;border:1px solid transparent;
-    border-radius:8px;padding:9px 10px;margin-bottom:3px;
-    display:flex;gap:9px;align-items:flex-start;
-    transition:background .12s,border-color .12s;position:relative;
-  }
-  .hist-item:hover{background:var(--panel-2);border-color:var(--panel-line)}
-  .hist-item.active{background:var(--panel-2);border-color:#3A5771}
-  .hist-main{flex:1;min-width:0;cursor:pointer}
-  .hist-q{
-    font-size:12.5px;line-height:1.45;color:#DCE5EC;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
-  }
-  .hist-meta{
-    font-family:"IBM Plex Mono",monospace;font-size:10px;
-    color:var(--panel-muted);margin-top:5px;letter-spacing:.02em;
-  }
-  .hist-del{
-    background:none;border:none;color:#5B7185;font-size:15px;line-height:1;
-    padding:2px 4px;border-radius:5px;opacity:0;transition:opacity .12s,color .12s;
-  }
-  .hist-item:hover .hist-del{opacity:1}
-  .hist-del:hover{color:var(--danger)}
+  .primary-btn:hover{background:#3242ad;transform:translateY(-1px);box-shadow:0 8px 22px rgba(58,75,192,.32)}
+  .primary-btn:disabled{background:var(--line-strong);box-shadow:none;cursor:not-allowed;transform:none;color:#fff}
+  .subtle-btn{background:var(--surface-2);border:1px solid var(--line-strong);color:var(--muted);padding:11px 18px;border-radius:99px;font-weight:500;font-size:14px;transition:.15s}
+  .subtle-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-tint)}
+  .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:22px}
+  .actions .spacer{flex:1}
 
-  /* settings block in sidebar */
-  .settings{
-    border-top:1px solid var(--panel-line);
-    padding:14px 16px 18px;
-  }
-  .settings.collapsed .settings-body{display:none}
-  .settings-head{
-    display:flex;align-items:center;justify-content:space-between;
-    cursor:pointer;user-select:none;
-  }
-  .settings-head .rail-label{padding:0}
-  .settings-head .chev{color:var(--panel-muted);font-size:11px;transition:transform .15s}
-  .settings.collapsed .chev{transform:rotate(-90deg)}
-  .settings-body{padding-top:12px}
-  .field{margin-bottom:12px}
-  .field label{
-    display:block;font-family:"IBM Plex Mono",monospace;
-    font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-    color:var(--panel-muted);margin-bottom:6px;
-  }
-  .side input[type=password],.side input[type=text],.side select{
-    width:100%;background:#0F1821;border:1px solid #2E4356;color:#E7EDF2;
-    border-radius:7px;padding:8px 10px;font-size:12.5px;outline:none;
-    transition:border-color .12s;
-  }
-  .side input:focus,.side select:focus{border-color:var(--accent)}
-  .side select{cursor:pointer}
-  .key-row{display:flex;gap:6px}
-  .key-row input{flex:1}
-  .mini-btn{
-    background:#26384A;border:1px solid #35506A;color:#BFD0DE;
-    border-radius:7px;padding:0 11px;font-size:11px;font-weight:500;white-space:nowrap;
-    transition:background .12s;
-  }
-  .mini-btn:hover{background:#31485E}
-  .key-status{
-    font-family:"IBM Plex Mono",monospace;font-size:10.5px;margin-top:7px;
-    display:flex;align-items:center;gap:6px;
-  }
-  .dot{width:6px;height:6px;border-radius:50%;background:#4B6076;flex:none}
-  .dot.on{background:var(--ok)}
-  .key-status .txt{color:var(--panel-muted)}
+  /* ---------- generating ---------- */
+  .gen-wrap{text-align:left}
+  .prog{list-style:none;padding:0;margin:22px 0 0}
+  .prog li{display:flex;align-items:center;gap:14px;padding:13px 4px;border-bottom:1px dashed var(--line)}
+  .prog li:last-child{border-bottom:none}
+  .p-ico{width:26px;height:26px;border-radius:99px;flex:none;display:grid;place-items:center;border:1.5px solid var(--line-strong);background:var(--surface)}
+  .p-txt{flex:1;font-size:14.5px;font-weight:500;color:var(--faint)}
+  .p-note{font-size:12px;color:var(--faint)}
+  li.done .p-ico{border-color:var(--green);background:var(--green-soft);color:var(--green)}
+  li.done .p-txt{color:var(--muted)}
+  li.active .p-ico{border-color:var(--accent);color:var(--accent)}
+  li.active .p-txt{color:var(--ink);font-weight:600}
+  li.error .p-ico{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+  .spin{width:14px;height:14px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:99px;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .err-box{margin-top:20px;background:var(--red-soft);border:1px solid #eec6c1;border-radius:var(--r-sm);padding:16px 18px;color:#8f342c;font-size:13.5px;display:none}
+  .err-box.on{display:block}
+  .err-box code{background:rgba(0,0,0,.05);padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
 
-  /* ---------- Main ---------- */
-  .main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
-  .composer{
-    padding:26px 34px 20px;
-    border-bottom:1px solid var(--line);
-    background:linear-gradient(180deg,#F2F4F6,#EDF0F3);
-  }
-  .composer-inner{max-width:900px;margin:0 auto}
-  .eyebrow{
-    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--muted);margin-bottom:12px;
-    display:flex;align-items:center;gap:8px;
-  }
-  .eyebrow .ln{height:1px;flex:1;background:var(--line-strong)}
-  .input-wrap{position:relative}
-  #topic{
-    width:100%;border:1.5px solid var(--line-strong);border-radius:var(--radius);
-    background:#FBFCFD;padding:16px 116px 16px 18px;
-    font-family:"Newsreader",serif;font-size:19px;line-height:1.5;color:var(--ink);
-    resize:none;outline:none;min-height:124px;overflow:hidden;
-    transition:border-color .15s,box-shadow .15s;
-  }
-  #topic:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-  #topic::placeholder{color:var(--muted-2);font-style:italic}
-  .mic{
-    position:absolute;right:12px;top:12px;
-    width:40px;height:40px;border-radius:50%;
-    background:#fff;border:1.5px solid var(--line-strong);color:var(--muted);
-    display:flex;align-items:center;justify-content:center;
-    transition:all .15s;
-  }
-  .mic:hover{border-color:var(--accent);color:var(--accent)}
-  .mic.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:pulse 1.3s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(176,74,62,.4)}70%{box-shadow:0 0 0 10px rgba(176,74,62,0)}100%{box-shadow:0 0 0 0 rgba(176,74,62,0)}}
-  .mic svg{width:19px;height:19px}
-
-  .controls{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}
-  .mode-ctrl{display:flex;align-items:center;gap:10px;width:100%}
-  .mode-ctrl .lab{
-    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;
-    text-transform:uppercase;color:var(--muted);flex:none;
-  }
-  .modes{display:flex;background:#fff;border:1.5px solid var(--line-strong);border-radius:8px;overflow:hidden}
-  .mode-btn{
-    padding:0 16px;height:34px;border:none;background:none;color:var(--muted);
-    font-size:13px;font-weight:600;border-right:1px solid var(--line);transition:all .12s;white-space:nowrap;
-  }
-  .mode-btn:last-child{border-right:none}
-  .mode-btn:hover{background:var(--paper-2)}
-  .mode-btn.sel{background:var(--accent);color:#fff}
-  .depth-ctrl{display:flex;align-items:center;gap:10px}
-  .depth-ctrl .lab{
-    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;
-    text-transform:uppercase;color:var(--muted);
-  }
-  .steps{display:flex;background:#fff;border:1.5px solid var(--line-strong);border-radius:8px;overflow:hidden}
-  .step{
-    width:38px;height:34px;border:none;background:none;color:var(--muted);
-    font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:500;
-    border-right:1px solid var(--line);transition:all .12s;
-  }
-  .step:last-child{border-right:none}
-  .step:hover{background:var(--paper-2)}
-  .step.sel{background:var(--ink);color:#fff}
-  .spacer{flex:1}
-  .gen-btn{
-    background:var(--accent);color:#fff;border:none;border-radius:8px;
-    padding:11px 24px;font-size:14px;font-weight:600;letter-spacing:.01em;
-    display:flex;align-items:center;gap:9px;transition:background .15s,transform .06s;
-    box-shadow:0 2px 8px rgba(192,114,46,.28);
-  }
-  .gen-btn:hover{background:var(--accent-hi)}
-  .gen-btn:active{transform:translateY(1px)}
-  .gen-btn:disabled{background:var(--muted-2);box-shadow:none;cursor:not-allowed}
-  .gen-btn svg{width:16px;height:16px}
-
-  /* canvas */
-  .canvas{flex:1;overflow-y:auto;min-height:0;padding:28px 34px 80px}
-  .canvas-inner{max-width:900px;margin:0 auto}
-
-  .toolbar{
-    display:flex;align-items:center;gap:8px;margin-bottom:20px;
-    padding-bottom:16px;border-bottom:1px solid var(--line);flex-wrap:wrap;
-  }
-  .root-chip{
-    flex:1;min-width:0;font-family:"Newsreader",serif;font-size:15px;font-style:italic;
-    color:var(--muted);display:flex;align-items:center;gap:9px;
-  }
-  .root-chip .k{
-    font-family:"IBM Plex Mono",monospace;font-style:normal;font-size:10px;
-    letter-spacing:.1em;text-transform:uppercase;color:var(--accent);
-    border:1px solid var(--accent-soft);background:#FBF4EC;padding:3px 7px;border-radius:5px;flex:none;
-  }
-  .root-chip .txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .tool-btn{
-    background:#fff;border:1px solid var(--line-strong);color:var(--muted);
-    border-radius:7px;padding:7px 12px;font-size:12px;font-weight:500;
-    display:flex;align-items:center;gap:6px;transition:all .12s;white-space:nowrap;
-  }
-  .tool-btn:hover{border-color:var(--accent);color:var(--accent);background:#FBF4EC}
-  .tool-btn svg{width:13px;height:13px}
-  .tool-btn.danger:hover{border-color:var(--danger);color:var(--danger);background:#F9EDEB}
-
-  /* ---------- Tree ---------- */
+  /* ---------- tree ---------- */
+  .tree-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .legend{font-size:12px;color:var(--faint);display:flex;gap:14px;flex-wrap:wrap}
+  .legend b{color:var(--amber);font-weight:600}
   .tree{margin-top:4px}
   .node{position:relative}
-  .node-children{margin-left:22px;position:relative;overflow:hidden}
-  .node-children::before{
-    content:"";position:absolute;left:-1px;top:0;bottom:14px;width:1.5px;
-    background:var(--line-strong);
-  }
-  .node.collapsed > .node-children{display:none}
-
+  .node-children{margin-left:22px;padding-left:16px;border-left:1.5px solid var(--line);}
   .row{
-    display:flex;align-items:flex-start;gap:8px;padding:5px 0;position:relative;
+    display:flex;align-items:center;gap:6px;padding:4px 0;position:relative;
   }
-  .row-line{
-    position:absolute;left:-22px;top:19px;width:20px;height:1.5px;background:var(--line-strong);
+  .row::before{
+    content:"";position:absolute;left:-16px;top:50%;width:14px;height:1.5px;background:var(--line);
   }
-  .node-children > .node > .row .row-line{display:block}
-  .node > .row > .row-line{display:none}
+  .node-children .row::before{display:block}
+  .tree > .node > .row::before{display:none}
+  .depth-badge{
+    flex:none;font-size:10px;font-weight:700;font-family:"Space Grotesk";color:var(--accent);
+    background:var(--accent-tint);border:1px solid var(--accent-soft);border-radius:5px;padding:1px 5px;min-width:26px;text-align:center;
+  }
+  .node-input{
+    flex:1;min-width:0;border:1px solid transparent;background:transparent;border-radius:6px;
+    padding:6px 9px;font-size:14px;color:var(--ink);transition:.12s;font-weight:500;
+  }
+  .node-input:hover{background:var(--surface-2)}
+  .node-input:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px var(--accent-tint)}
+  .node.flagged > .row > .node-input{background:var(--amber-soft);color:#7a4d09}
+  .flag-tag{flex:none;font-size:10.5px;font-weight:600;color:var(--amber);background:var(--amber-soft);border:1px solid #ecdcb4;padding:1px 7px;border-radius:99px;display:none}
+  .node.flagged .flag-tag{display:inline}
+  .node-ctrl{display:flex;gap:2px;flex:none;opacity:.35;transition:.15s}
+  .row:hover .node-ctrl,.row:focus-within .node-ctrl{opacity:1}
+  .nb{width:28px;height:28px;border:none;background:transparent;border-radius:6px;color:var(--faint);display:grid;place-items:center;transition:.12s}
+  .nb:hover{background:var(--surface-3);color:var(--accent)}
+  .nb.del:hover{background:var(--red-soft);color:var(--red)}
+  .nb.flag:hover{background:var(--amber-soft);color:var(--amber)}
+  .nb.flag.on{color:var(--amber)}
+  @media(max-width:640px){.node-ctrl{opacity:1}.nb{width:32px;height:32px}}
 
-  .twist{
-    flex:none;width:20px;height:28px;border:none;background:none;color:var(--muted-2);
-    display:flex;align-items:center;justify-content:center;font-size:10px;
-    transition:transform .15s,color .12s;margin-top:1px;
+  /* ---------- questions ---------- */
+  .q-count{font-size:12.5px;color:var(--faint);font-weight:600;font-family:"Space Grotesk";letter-spacing:.03em}
+  .q-bar{height:5px;background:var(--surface-3);border-radius:99px;overflow:hidden;margin:12px 0 26px}
+  .q-bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));border-radius:99px;transition:width .4s cubic-bezier(.2,.7,.3,1)}
+  .q-text{font-size:20px;font-weight:600;line-height:1.45;margin:0 0 20px;font-family:"Space Grotesk";letter-spacing:-.01em}
+  .opt{
+    display:flex;align-items:flex-start;gap:13px;border:1.5px solid var(--line-strong);border-radius:var(--r-sm);
+    padding:14px 16px;margin-bottom:11px;cursor:pointer;transition:.14s;background:var(--surface-2);position:relative
   }
-  .twist:hover{color:var(--ink)}
-  .twist.empty{visibility:hidden}
-  .node.collapsed > .row > .twist{transform:rotate(-90deg)}
+  .opt:hover{border-color:var(--accent-2);background:#fff}
+  .opt.sel{border-color:var(--accent);background:var(--accent-tint);box-shadow:0 0 0 3px var(--accent-tint)}
+  .opt .radio{width:19px;height:19px;border-radius:99px;border:2px solid var(--line-strong);flex:none;margin-top:1px;display:grid;place-items:center;transition:.14s}
+  .opt.sel .radio{border-color:var(--accent)}
+  .opt.sel .radio::after{content:"";width:9px;height:9px;border-radius:99px;background:var(--accent)}
+  .opt .otext{flex:1;font-size:14.5px;font-weight:500}
+  .rec-badge{font-size:10.5px;font-weight:700;color:#fff;background:var(--accent);padding:2px 8px;border-radius:99px;letter-spacing:.02em;white-space:nowrap;flex:none;margin-top:1px}
+  .rec-reason{font-size:12.5px;color:var(--muted);background:var(--accent-tint);border-left:3px solid var(--accent);padding:9px 13px;border-radius:0 6px 6px 0;margin:2px 0 20px;display:flex;gap:8px}
+  .rec-reason b{color:var(--accent);font-weight:600;flex:none}
+  .free-area{display:none;margin-top:2px}
+  .free-area.on{display:block;animation:rise .25s}
 
-  .card{
-    flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:8px;
-    padding:11px 13px;display:flex;align-items:flex-start;gap:11px;
-    box-shadow:var(--shadow);transition:border-color .12s,box-shadow .12s;
-    position:relative;
-  }
-  .card:hover{border-color:var(--line-strong)}
-  .node.dragging > .row > .card{opacity:.4}
-  .card.drop-into{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-  .card.drop-before::before,.card.drop-after::before{
-    content:"";position:absolute;left:0;right:0;height:2.5px;background:var(--accent);border-radius:2px;
-  }
-  .card.drop-before::before{top:-5px}
-  .card.drop-after::before{bottom:-5px}
+  /* ---------- result ---------- */
+  .verdict{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;padding:5px 13px;border-radius:99px;letter-spacing:.03em}
+  .verdict.single{background:var(--green-soft);color:var(--green)}
+  .verdict.multiple{background:var(--accent-tint);color:var(--accent)}
+  .conclusion{font-size:16.5px;line-height:1.74;margin-top:22px;padding:16px 20px;background:var(--accent-tint);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;color:var(--ink);font-weight:500}
+  .exam-item{padding:14px 0;border-bottom:1px dashed var(--line)}
+  .exam-item:last-child{border-bottom:none}
+  .ex-b{font-weight:600;font-size:14px;color:var(--accent);margin-bottom:5px;display:flex;gap:9px;align-items:baseline}
+  .ex-b::before{content:"";width:6px;height:6px;border-radius:99px;background:var(--accent);flex:none;transform:translateY(-1px)}
+  .ex-a{font-size:13.7px;color:var(--muted);line-height:1.64;padding-left:15px}
+  .ans{border:1px solid var(--line);border-radius:var(--r);padding:20px 22px;margin-top:16px;position:relative;background:var(--surface);overflow:hidden}
+  .ans::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+  .ans .rank{font-family:"Space Grotesk";font-weight:700;font-size:12px;color:var(--accent);letter-spacing:.04em}
+  .ans h3{font-size:19px;margin:6px 0 12px;font-weight:600;letter-spacing:-.01em}
+  .ans .meta{display:grid;gap:10px}
+  .metrow{display:grid;grid-template-columns:92px 1fr;gap:12px;font-size:13.5px;align-items:baseline}
+  .metrow .k{color:var(--faint);font-weight:600;font-size:12px}
+  .basis-box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:16px 18px;font-size:13.5px;color:var(--muted);margin-top:6px}
+  .qa-item{border-bottom:1px dashed var(--line);padding:12px 0;font-size:13.5px}
+  .qa-item:last-child{border-bottom:none}
+  .qa-item .q{font-weight:600;color:var(--ink)}
+  .qa-item .a{color:var(--accent);margin-top:3px}
+  .qa-item .a::before{content:"→ ";color:var(--faint)}
 
-  .lvl{
-    flex:none;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;
-    color:var(--accent);background:#FBF4EC;border-radius:5px;padding:3px 6px;
-    letter-spacing:.03em;margin-top:1px;cursor:grab;user-select:none;
-  }
-  .lvl:active{cursor:grabbing}
-  .q{
-    flex:1;min-width:0;font-family:"Newsreader",serif;font-size:16px;line-height:1.5;
-    color:var(--ink);word-break:break-word;padding:1px 0;
-  }
-  .q[contenteditable]{outline:none;cursor:text;border-radius:4px}
-  .q[contenteditable]:focus{background:#FBF9F5;box-shadow:0 0 0 2px var(--accent-soft)}
+  details.tree-fold{border:1px solid var(--line);border-radius:var(--r-sm);padding:0 16px;background:var(--surface-2)}
+  details.tree-fold > summary{cursor:pointer;padding:14px 0;font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;gap:8px}
+  details.tree-fold > summary::-webkit-details-marker{display:none}
+  details.tree-fold[open] > summary{border-bottom:1px solid var(--line)}
+  .ro-tree{padding:14px 0}
+  .ro-node{margin:3px 0}
+  .ro-node .ro-row{display:flex;gap:8px;align-items:baseline}
+  .ro-children{margin-left:20px;padding-left:14px;border-left:1.5px solid var(--line)}
+  .ro-txt{font-size:13.5px}
+  .ro-node.f .ro-txt{color:var(--amber);font-weight:500}
 
-  .node-acts{
-    flex:none;display:flex;gap:1px;opacity:0;transition:opacity .12s;align-self:center;
-  }
-  .card:hover .node-acts{opacity:1}
-  .act{
-    width:27px;height:27px;border:none;background:none;color:var(--muted-2);border-radius:6px;
-    display:flex;align-items:center;justify-content:center;transition:all .12s;
-  }
-  .act:hover{background:var(--paper-2);color:var(--ink)}
-  .act.dive:hover{background:#FBF4EC;color:var(--accent)}
-  .act.del:hover{background:#F9EDEB;color:var(--danger)}
-  .act svg{width:14px;height:14px}
-  .act.busy{pointer-events:none}
-  .act.busy svg{animation:spin 1s linear infinite}
+  /* ---------- saved list ---------- */
+  .saved-item{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:12px;box-shadow:var(--shadow);transition:.15s}
+  .saved-item:hover{border-color:var(--line-strong);box-shadow:var(--shadow-lg)}
+  .saved-item .info{flex:1;min-width:0}
+  .saved-item .sq{font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .saved-item .sd{font-size:12px;color:var(--faint);margin-top:2px}
+  .saved-item .sacts{display:flex;gap:6px;flex-none}
+  .mini{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--muted);border-radius:7px;padding:7px 11px;font-size:12.5px;font-weight:500;transition:.14s}
+  .mini:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-tint)}
+  .mini.dg:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+  .empty{text-align:center;padding:50px 20px;color:var(--faint)}
+  .empty .big{font-size:15px;font-weight:600;color:var(--muted);margin-bottom:6px}
 
-  .add-child{
-    margin:3px 0 3px 0;background:none;border:1px dashed var(--line-strong);color:var(--muted-2);
-    border-radius:7px;padding:5px 11px;font-size:11.5px;display:inline-flex;align-items:center;gap:6px;
-    transition:all .12s;
-  }
-  .add-child:hover{border-color:var(--accent);color:var(--accent);background:#FBF4EC}
-  .add-child svg{width:12px;height:12px}
+  /* ---------- toast ---------- */
+  .toast-wrap{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .toast{background:var(--ink);color:#fff;padding:12px 16px;border-radius:99px;font-size:13.5px;font-weight:500;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:14px;animation:rise .25s}
+  .toast button{background:transparent;border:none;color:#8fb0ff;font-weight:600;font-size:13px}
+  .toast.warn{background:#7a4d09}
+  .toast.warn button{color:#ffd98a}
 
-  /* ---------- Empty / loading / error ---------- */
-  .empty{
-    max-width:560px;margin:6vh auto 0;text-align:center;padding:20px;
-  }
-  .empty .mark{
-    font-family:"Newsreader",serif;font-style:italic;font-size:72px;font-weight:500;
-    color:var(--line-strong);line-height:1;
-  }
-  .empty h2{font-size:19px;font-weight:600;margin:18px 0 10px;color:var(--ink)}
-  .empty p{color:var(--muted);font-size:14px;line-height:1.7;margin:0 auto;max-width:440px}
-  .empty .hint{
-    margin-top:22px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted-2);
-    display:inline-flex;gap:16px;flex-wrap:wrap;justify-content:center;
-    border-top:1px solid var(--line);padding-top:18px;
-  }
-  .empty .hint b{color:var(--muted);font-weight:500}
-
-  .loading{max-width:560px;margin:10vh auto 0;text-align:center}
-  .spinner{
-    width:34px;height:34px;margin:0 auto 20px;border:3px solid var(--line);
-    border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;
-  }
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .loading .msg{font-size:15px;color:var(--ink);font-weight:500}
-  .loading .sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:8px}
-
-  .errbox{
-    max-width:560px;margin:8vh auto 0;background:#FBF0EE;border:1px solid #E7C4BE;
-    border-radius:var(--radius);padding:22px 24px;
-  }
-  .errbox h3{margin:0 0 8px;font-size:15px;color:var(--danger);display:flex;align-items:center;gap:9px}
-  .errbox p{margin:0 0 4px;font-size:13.5px;line-height:1.6;color:#7A4038}
-  .errbox .detail{
-    font-family:"IBM Plex Mono",monospace;font-size:11px;color:#9A5A50;
-    background:#F5E2DE;border-radius:6px;padding:9px 11px;margin:12px 0 16px;
-    word-break:break-word;white-space:pre-wrap;
-  }
-  .errbox .retry{
-    background:var(--danger);color:#fff;border:none;border-radius:7px;
-    padding:9px 18px;font-size:13px;font-weight:600;
-  }
-  .errbox .retry:hover{background:#9A4038}
-
-  /* toast */
-  .toast{
-    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
-    background:var(--ink);color:#fff;padding:11px 20px;border-radius:9px;font-size:13px;
-    box-shadow:0 8px 30px rgba(20,35,50,.28);opacity:0;pointer-events:none;
-    transition:opacity .2s,transform .2s;z-index:50;display:flex;align-items:center;gap:9px;
-  }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .toast svg{width:15px;height:15px;color:var(--accent-hi)}
-
-  /* inline API-key banner (main area) */
-  .key-banner{
-    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    background:#FBF4EC;border:1px solid var(--accent-soft);border-radius:10px;
-    padding:12px 14px;margin-bottom:18px;
-  }
-  .key-banner .kb-ic{flex:none;color:var(--accent)}
-  .key-banner .kb-ic svg{width:18px;height:18px;display:block}
-  .key-banner .kb-txt{font-size:13px;line-height:1.5;color:#8A5A2A;flex:1;min-width:180px}
-  .key-banner .kb-txt b{color:#6E4419;font-weight:600}
-  .key-banner input{
-    flex:1;min-width:200px;background:#fff;border:1.5px solid var(--accent-soft);
-    border-radius:7px;padding:9px 11px;font-size:13px;color:var(--ink);outline:none;
-  }
-  .key-banner input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,114,46,.12)}
-  .key-banner .kb-save{
-    background:var(--accent);color:#fff;border:none;border-radius:7px;
-    padding:9px 18px;font-size:13px;font-weight:600;white-space:nowrap;
-  }
-  .key-banner .kb-save:hover{background:var(--accent-hi)}
-  .key-banner .kb-link{
-    font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap;
-    font-family:"IBM Plex Mono",monospace;
-  }
-  .key-banner .kb-link:hover{text-decoration:underline}
-
-  /* menu toggle + scrim (narrow screens) */
-  .menu-toggle{
-    display:none;position:fixed;left:14px;top:14px;z-index:45;
-    width:40px;height:40px;border-radius:9px;border:1px solid var(--line-strong);
-    background:#fff;color:var(--ink);align-items:center;justify-content:center;
-    box-shadow:var(--shadow);
-  }
-  .menu-toggle svg{width:20px;height:20px}
-  .scrim{position:fixed;inset:0;background:rgba(20,35,50,.42);z-index:38;opacity:0;pointer-events:none;transition:opacity .2s}
-  .scrim.show{opacity:1;pointer-events:auto}
-
-  /* primary tool button */
-  .tool-btn.primary{
-    background:var(--accent);border-color:var(--accent);color:#fff;
-    box-shadow:0 2px 8px rgba(192,114,46,.24);
-  }
-  .tool-btn.primary:hover{background:var(--accent-hi);border-color:var(--accent-hi);color:#fff}
-  .tool-btn.primary svg{stroke:#fff}
-
-  /* ---------- Question modal ---------- */
-  .modal-root{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
-  .modal-root.show{display:flex}
-  .modal-root::before{content:"";position:absolute;inset:0;background:rgba(16,24,33,.55);backdrop-filter:blur(3px)}
-  .qmodal{
-    position:relative;width:100%;max-width:620px;background:#fff;border-radius:16px;
-    box-shadow:0 24px 70px rgba(16,24,33,.4);overflow:hidden;display:flex;flex-direction:column;
-    max-height:calc(100vh - 48px);animation:qm-in .22s cubic-bezier(.2,.8,.3,1);
-  }
-  @keyframes qm-in{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
-  .qm-top{display:flex;align-items:center;gap:14px;padding:16px 18px 14px;border-bottom:1px solid var(--line)}
-  .qm-prog{flex:1;height:5px;background:var(--paper-2);border-radius:5px;overflow:hidden}
-  .qm-prog-bar{height:100%;background:var(--accent);border-radius:5px;transition:width .3s ease}
-  .qm-count{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);letter-spacing:.03em;flex:none}
-  .qm-close{flex:none;width:30px;height:30px;border:none;background:none;color:var(--muted-2);border-radius:7px;font-size:15px}
-  .qm-close:hover{background:var(--paper-2);color:var(--ink)}
-  .qm-body{padding:24px 26px 8px;overflow-y:auto}
-  .qm-path{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted-2);margin-bottom:12px;line-height:1.6}
-  .qm-note{font-size:12.5px;line-height:1.6;color:#8A5A2A;background:var(--accent-soft);border-radius:9px;padding:10px 13px;margin-bottom:14px}
-  .qm-path .sep{color:var(--line-strong);margin:0 3px}
-  .qm-q{font-family:"Newsreader",serif;font-size:23px;line-height:1.4;color:var(--ink);margin-bottom:22px}
-  .qm-opts{display:flex;flex-direction:column;gap:9px}
-  .qm-opt{
-    display:flex;align-items:flex-start;gap:13px;text-align:left;width:100%;
-    background:#fff;border:1.5px solid var(--line-strong);border-radius:11px;padding:14px 15px;
-    transition:all .12s;color:var(--ink);
-  }
-  .qm-opt:hover{border-color:var(--accent);background:#FDF8F2}
-  .qm-opt.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(192,114,46,.14)}
-  .qm-mark{
-    flex:none;width:26px;height:26px;border-radius:7px;background:var(--paper-2);color:var(--muted);
-    display:flex;align-items:center;justify-content:center;font-family:"IBM Plex Mono",monospace;
-    font-size:13px;font-weight:600;transition:all .12s;margin-top:1px;
-  }
-  .qm-opt:hover .qm-mark,.qm-opt.sel .qm-mark{background:var(--accent);color:#fff}
-  .qm-otext{flex:1;font-size:15px;line-height:1.5;padding-top:2px}
-  .qm-other{border-style:dashed}
-  .qm-otherfield{
-    width:100%;margin-top:2px;border:1.5px solid var(--accent-soft);border-radius:10px;
-    padding:12px 14px;font-family:"Newsreader",serif;font-size:15px;line-height:1.5;color:var(--ink);
-    outline:none;resize:vertical;min-height:70px;background:#FDFAF6;
-  }
-  .qm-otherfield:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(192,114,46,.12)}
-  .qm-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 22px 20px;border-top:1px solid var(--line);margin-top:14px}
-  .qm-foot-r{display:flex;gap:8px}
-  .qm-btn{border:none;border-radius:9px;padding:10px 18px;font-size:14px;font-weight:600;transition:all .12s}
-  .qm-btn.ghost{background:none;color:var(--muted)}
-  .qm-btn.ghost:hover:not(:disabled){background:var(--paper-2);color:var(--ink)}
-  .qm-btn.primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(192,114,46,.26)}
-  .qm-btn.primary:hover:not(:disabled){background:var(--accent-hi)}
-  .qm-btn:disabled{opacity:.4;cursor:not-allowed}
-
-  /* ---------- Report ---------- */
-  .report-actions{display:flex;align-items:center;gap:8px;margin-bottom:22px;flex-wrap:wrap}
-  .report-actions .spacer{flex:1}
-  .report{
-    max-width:none;background:#fff;border:1px solid var(--line);border-radius:14px;
-    padding:46px 52px;box-shadow:var(--shadow);
-  }
-  .rp-head{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:8px}
-  .rp-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
-  .report h1{font-family:"Newsreader",serif;font-weight:600;font-size:32px;line-height:1.25;margin:0 0 16px;color:var(--ink)}
-  .rp-topic{font-size:14px;color:var(--muted);display:flex;gap:9px;align-items:baseline;border-left:2px solid var(--accent);padding-left:12px}
-  .rp-k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);flex:none}
-  .rp-overview{font-family:"Newsreader",serif;font-size:18px;line-height:1.75;color:#28323c;background:var(--accent-soft);border-radius:10px;padding:20px 24px;margin:26px 0 34px}
-  .rp-overview p{margin:0 0 10px}.rp-overview p:last-child{margin:0}
-  .rp-sec{margin:30px 0}
-  .report h2{font-size:19px;font-weight:600;margin:0 0 12px;display:flex;align-items:baseline;gap:12px;color:var(--ink)}
-  .rp-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);font-weight:600}
-  .report p{margin:0 0 12px;font-size:15px;line-height:1.75;color:#28323c}
-  .rp-points{margin:8px 0 0;padding-left:20px}
-  .rp-points li{font-size:14.5px;margin:5px 0;color:#33404b;line-height:1.6}
-  .rp-conclusion{margin:38px 0 8px;background:var(--panel);color:#EAF0F5;border-radius:12px;padding:26px 30px}
-  .rp-conclusion h2{color:#fff}
-  .rp-conclusion p{font-size:15.5px;color:#DCE5EC}
-  .rp-appendix{margin-top:36px;border-top:1px solid var(--line);padding-top:18px}
-  .rp-appendix summary{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);cursor:pointer;letter-spacing:.04em;user-select:none}
-  .rp-qa{margin:16px 0 0;padding:0;list-style:none}
-  .rp-qa li{padding:11px 0;border-bottom:1px solid var(--line)}
-  .rp-qa-q{font-family:"Newsreader",serif;font-size:15px;color:var(--ink);margin-bottom:3px}
-  .rp-qa-a{font-size:13.5px;color:var(--accent)}
-  .rp-na{color:var(--muted-2)}
-
-  @media print{
-    .side,.composer,.menu-toggle,.report-actions,.scrim,.modal-root,.toast{display:none!important}
-    .app{display:block;height:auto}
-    .main{overflow:visible}
-    .canvas{overflow:visible;padding:0}
-    .report{border:none;box-shadow:none;border-radius:0;padding:0}
-    body{background:#fff}
-  }
-
-  @media (max-width:820px){
-    .report{padding:30px 22px}
-    .qm-q{font-size:20px}
-  }
-
-  @media (prefers-reduced-motion:reduce){
-    *{animation-duration:.001s!important;transition-duration:.001s!important}
-  }
-  @media (max-width:820px){
-    .app{grid-template-columns:1fr}
-    .side{position:fixed;left:0;top:0;bottom:0;width:288px;z-index:40;transform:translateX(-100%);transition:transform .2s}
-    .side.open{transform:none}
-    .menu-toggle{display:flex}
-    .composer{padding-left:18px;padding-right:18px;padding-top:64px}
-    .canvas{padding-left:18px;padding-right:18px}
-  }
+  .divider{height:1px;background:var(--line);margin:24px 0}
+  .subhead{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px;letter-spacing:.02em}
+  .note-inline{font-size:12.5px;color:var(--faint);margin-top:8px}
+  a.link{color:var(--accent);text-decoration:none;font-weight:500}
+  a.link:hover{text-decoration:underline}
 </style>
 </head>
 <body>
-<div class="app">
-  <!-- ============ SIDEBAR ============ -->
-  <aside class="side" id="side">
+
+<header class="top">
+  <div class="top-in">
     <div class="brand">
-      <div class="glyph">?</div>
-      <h1>問いの構造ツリー</h1>
-      <p>MECE question decomposer</p>
-    </div>
-
-    <div class="side-scroll">
-      <div class="rail-label">履歴 <span class="count" id="histCount"></span></div>
-      <div id="histList"></div>
-    </div>
-
-    <div class="settings" id="settings">
-      <div class="settings-head" id="settingsHead">
-        <div class="rail-label" style="padding:0">設定</div>
-        <span class="chev">▾</span>
-      </div>
-      <div class="settings-body">
-        <div class="field">
-          <label>Gemini API キー</label>
-          <div class="key-row" id="keyRow">
-            <input type="password" id="apiKey" placeholder="AIza… を貼り付け" autocomplete="off" spellcheck="false">
-            <button class="mini-btn" id="keySave">保存</button>
-          </div>
-          <div class="key-status" id="keyStatus">
-            <span class="dot" id="keyDot"></span>
-            <span class="txt" id="keyTxt">未設定</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>モデル</label>
-          <select id="model">
-            <optgroup label="Flash（高速・省コスト）">
-              <option value="gemini-2.5-flash">Flash 2.5（安定・デフォルト）</option>
-              <option value="gemini-3.5-flash">Flash 3.5（最新）</option>
-            </optgroup>
-            <optgroup label="Pro（高品質）">
-              <option value="gemini-2.5-pro">Pro 2.5（安定）</option>
-              <option value="gemini-3.1-pro-preview">Pro 3.1（最新）</option>
-            </optgroup>
-          </select>
-        </div>
+      <svg class="glyph" viewBox="0 0 26 26" fill="none">
+        <circle cx="13" cy="4" r="3" fill="#3A4BC0"/>
+        <circle cx="5" cy="16" r="2.4" stroke="#3A4BC0" stroke-width="1.6"/>
+        <circle cx="13" cy="16" r="2.4" stroke="#3A4BC0" stroke-width="1.6"/>
+        <circle cx="21" cy="16" r="2.4" stroke="#3A4BC0" stroke-width="1.6"/>
+        <path d="M13 7v3M13 10H5v3.4M13 10v3.4M13 10h8v3.4" stroke="#3A4BC0" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="name">思考の分岐</div>
+        <div class="sub">ロジックツリーで最適な答えを導く</div>
       </div>
     </div>
-  </aside>
-
-  <!-- ============ MAIN ============ -->
-  <div class="main">
-    <div class="composer">
-      <div class="composer-inner">
-        <div id="keyBanner"></div>
-        <div class="eyebrow"><span>お題を入力</span><span class="ln"></span></div>
-        <div class="input-wrap">
-          <textarea id="topic" rows="1" placeholder="解き明かしたいテーマや中心的な問いを入力…（例：自社ECの売上をどう伸ばすか？）"></textarea>
-          <button class="mic" id="mic" title="音声入力">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-          </button>
-        </div>
-        <div class="controls">
-          <div class="mode-ctrl">
-            <span class="lab">種類</span>
-            <div class="modes" id="modes"></div>
-          </div>
-        </div>
-        <div class="controls">
-          <div class="depth-ctrl">
-            <span class="lab">階層数</span>
-            <div class="steps" id="steps"></div>
-          </div>
-          <div class="spacer"></div>
-          <button class="gen-btn" id="genBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z"/></svg>
-            ツリーを生成
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="canvas" id="canvas">
-      <div class="canvas-inner" id="canvasInner">
-        <!-- content injected -->
-      </div>
-    </div>
+    <div class="top-spacer"></div>
+    <button class="ghost-btn" id="navSaved">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h8l2 2v9H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 2.5v4h4" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      保存レポート
+    </button>
   </div>
-</div>
+</header>
 
-<button class="menu-toggle" id="menuToggle" title="メニュー">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-</button>
-<div class="scrim" id="scrim"></div>
-<div class="modal-root" id="modalRoot"></div>
+<main class="app">
+  <div class="rail" id="rail">
+    <div class="step" data-s="setup"><span class="dot">1</span><span class="label">入力</span></div>
+    <div class="step" data-s="gen"><span class="dot">2</span><span class="label">生成</span></div>
+    <div class="step" data-s="review"><span class="dot">3</span><span class="label">チェック</span></div>
+    <div class="step" data-s="ask"><span class="dot">4</span><span class="label">質問</span></div>
+    <div class="step" data-s="result"><span class="dot">5</span><span class="label">結果</span></div>
+  </div>
 
-<div class="toast" id="toast"></div>
+  <!-- ============ SETUP ============ -->
+  <section class="screen" id="s-setup">
+    <div class="card hero">
+      <div class="eyebrow">Step 1 · 問いと設定</div>
+      <h2 class="title">問いを、選択肢の地図に変える。</h2>
+      <p class="lede">質問を入れると、AIが答えの候補をMECEに展開し、レビューで磨き、あなたに要点を尋ねて、根拠つきの最適解を導きます。</p>
+      <div class="field" style="margin-top:24px">
+        <label>あなたの問い <span class="hint">意思決定したいこと・答えを出したいことを一文で</span></label>
+        <textarea class="input" id="question" placeholder="例）新規事業のSaaSで、来期の売上を伸ばすには何をすべきか？"></textarea>
+      </div>
+      <div class="actions">
+        <button class="primary-btn" id="startBtn">
+          ツリーを生成する
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="note-inline" id="setupNote"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="subhead">Gemini API</div>
+      <div class="field">
+        <label>APIキー <span class="hint">キーはこのブラウザ内にのみ保持され、外部やレポートには埋め込まれません</span></label>
+        <div class="key-row">
+          <input class="input" id="apiKey" type="password" placeholder="AIza... で始まるキーを貼り付け" autocomplete="off">
+          <button class="icon-btn" id="toggleKey" title="表示 / 非表示">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M1.5 9S4 3.5 9 3.5 16.5 9 16.5 9 14 14.5 9 14.5 1.5 9 1.5 9Z" stroke="currentColor" stroke-width="1.3"/><circle cx="9" cy="9" r="2.2" stroke="currentColor" stroke-width="1.3"/></svg>
+          </button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap;gap:10px">
+          <label class="check"><input type="checkbox" id="saveKey" checked> このブラウザにキーを保存する</label>
+          <button class="mini dg" id="clearKey" style="display:none">保存したキーを消す</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>モデル</label>
+        <select class="input" id="model">
+          <option value="gemini-3.5-flash">gemini-3.5-flash — 高速・低コスト（推奨）</option>
+          <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview — 高精度・低速</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="subhead">ツリーとレビューの設定</div>
+      <div class="grid3">
+        <div class="field">
+          <label>ツリーの深さ</label>
+          <div class="stepper" data-key="depth" data-min="2" data-max="5"><button data-d="-1">−</button><span class="val">3</span><button data-d="1">＋</button></div>
+          <span class="range">2〜5 階層</span>
+        </div>
+        <div class="field">
+          <label>AIレビュー回数</label>
+          <div class="stepper" data-key="reviewCount" data-min="1" data-max="5"><button data-d="-1">−</button><span class="val">2</span><button data-d="1">＋</button></div>
+          <span class="range">1〜5 回</span>
+        </div>
+        <div class="field">
+          <label>1階層の目安上限</label>
+          <div class="stepper" data-key="branchLimit" data-min="3" data-max="12"><button data-d="-1">−</button><span class="val">7</span><button data-d="1">＋</button></div>
+          <span class="range">MECEなら下回ってよい</span>
+        </div>
+        <div class="field">
+          <label>絞り込み質問の目安数</label>
+          <div class="stepper" data-key="questionCount" data-min="2" data-max="8"><button data-d="-1">−</button><span class="val">4</span><button data-d="1">＋</button></div>
+          <span class="range">2〜8 問</span>
+        </div>
+        <div class="field">
+          <label>最終回答の上限</label>
+          <div class="stepper" data-key="answerLimit" data-min="1" data-max="5"><button data-d="-1">−</button><span class="val">3</span><button data-d="1">＋</button></div>
+          <span class="range">複数提示時の件数</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GENERATING ============ -->
+  <section class="screen" id="s-gen">
+    <div class="card gen-wrap">
+      <div class="eyebrow">Step 2 · 生成中</div>
+      <h2 class="title">選択肢の地図を組み立てています</h2>
+      <p class="lede">横に網羅し、縦に具体化し、レビューでMECEを磨きます。工程が多いので少しお待ちください。</p>
+      <ul class="prog" id="prog"></ul>
+      <div class="err-box" id="genErr"></div>
+      <div class="actions" id="genActions" style="display:none">
+        <button class="primary-btn" id="retryBtn">この工程からやり直す</button>
+        <button class="subtle-btn" id="genBackBtn">設定に戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW / HUMAN CHECK ============ -->
+  <section class="screen" id="s-review">
+    <div class="card">
+      <div class="eyebrow">Step 3 · 人間による確認</div>
+      <h2 class="title">ツリーを最終調整</h2>
+      <p class="lede">言葉を直す・抜けを足す・要らないものを消す。<b style="color:var(--amber)">アンバー</b>のノードは「論点ズレの疑い」としてAIが印を付けたものです。</p>
+      <div class="divider"></div>
+      <div class="tree-tools">
+        <div class="legend">
+          <span>各ノード：<b style="color:var(--muted)">クリックで編集</b></span>
+          <span>＋兄弟 / ＋子で追加</span>
+          <span><b>▲</b> ズレフラグ切替</span>
+        </div>
+      </div>
+      <div class="tree" id="tree"></div>
+      <div class="divider"></div>
+      <div class="actions">
+        <button class="primary-btn" id="toComprehensive">
+          今のツリーでお題に答える
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="subtle-btn" id="toQuestions">質問で状況に合わせて絞り込む →</button>
+        <button class="subtle-btn" id="rerunReview">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="margin-right:2px"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          AIレビューをもう1回かける
+        </button>
+        <span class="spacer"></span>
+        <button class="subtle-btn" id="reviewBackBtn">設定に戻る</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ASK ============ -->
+  <section class="screen" id="s-ask">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="eyebrow">Step 4 · 絞り込み</div>
+        <span class="q-count" id="qCount">1 / 4</span>
+      </div>
+      <div class="q-bar"><i id="qFill" style="width:0%"></i></div>
+      <p class="q-text" id="qText">…</p>
+      <div class="rec-reason" id="qReason"><b>AIの見立て</b><span></span></div>
+      <div id="qOpts"></div>
+      <div class="actions">
+        <button class="subtle-btn" id="qPrev" style="display:none">戻る</button>
+        <span class="spacer"></span>
+        <button class="primary-btn" id="qNext">
+          <span>次へ</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULT ============ -->
+  <section class="screen" id="s-result">
+    <div class="card hero">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div>
+          <div class="eyebrow">お題への回答</div>
+          <h2 class="title" id="rQuestion" style="max-width:640px">…</h2>
+        </div>
+        <span class="verdict" id="rVerdict"></span>
+      </div>
+      <div class="conclusion" id="rConclusion"></div>
+    </div>
+
+    <div class="card" id="rExamCard">
+      <div class="subhead">包括的な検討 — ツリーの観点ごとに、答えへの効き方を評価</div>
+      <div id="rExamination"></div>
+    </div>
+
+    <div class="card">
+      <div class="subhead">推奨</div>
+      <div id="rAnswers"></div>
+    </div>
+
+    <div class="card">
+      <div id="rPremiseWrap" style="display:none">
+        <div class="subhead">前提 — あなたの状況が結論をどう形づくったか</div>
+        <div class="basis-box" id="rPremise"></div>
+      </div>
+      <div id="rQAWrap" style="display:none;margin-top:18px">
+        <div class="subhead">あなたの回答</div>
+        <div id="rQA"></div>
+      </div>
+      <div style="margin-top:18px">
+        <details class="tree-fold">
+          <summary>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 2v10M4 4h5v3H4M4 7h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            検討の足場となったロジックツリーを開く
+          </summary>
+          <div class="ro-tree" id="rTree"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card" id="resultActionsCard">
+      <div class="actions" style="margin-top:0"></div>
+    </div>
+  </section>
+
+  <!-- ============ SAVED LIST ============ -->
+  <section class="screen" id="s-saved">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="eyebrow">保存レポート</div>
+          <h2 class="title">これまでの検討</h2>
+        </div>
+        <button class="subtle-btn" id="savedBack">ツールに戻る</button>
+      </div>
+      <p class="lede" style="margin-top:6px">このブラウザ内に保存されています。開いてHTML／Markdownで書き出せます。</p>
+      <div class="divider"></div>
+      <div id="savedList"></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast-wrap" id="toasts"></div>
 
 <script>
 "use strict";
+
 /* ============================================================
-   問いの構造ツリー — single-file app (Gemini)
+   STATE & CONSTANTS
    ============================================================ */
-
-const LS = { KEY:"qtree_apikey", MODEL:"qtree_model", HIST:"qtree_history", MODE:"qtree_mode" };
-const MAX_DEPTH = 5, DEFAULT_DEPTH = 3;
-const ENDPOINT = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
-
-const MODES = {
-  question: {
-    label:"問いの構造ツリー", short:"問い", unit:"問い", clarifyTerm:"問いの構造ツリー（MECEな分解）",
-    gen:"問いの構造を生成しています…",
-    addRoot:"第1階層に問いを追加", add:"問いを追加", newNode:"新しい問い？",
-    diveTitle:"深掘り（AIで下位の問いを追加）", addTitle:"下位に問いを追加",
-    emptyTitle:"問いを、構造で解きほぐす",
-    emptyBody:"お題を入力し、階層数を選んで「ツリーを生成」を押すと、そのお題を解くために答えるべき問いが MECE に分解されます。各問いはさらに下位の問いへ枝分かれします。"
-  },
-  factor: {
-    label:"因数分解ツリー", short:"因数分解", unit:"要素", clarifyTerm:"因数分解ツリー（構成要素・原因のMECEな分解）",
-    gen:"構成要素を抽出しています…",
-    addRoot:"第1階層に要素を追加", add:"要素を追加", newNode:"新しい要素",
-    diveTitle:"深掘り（AIで下位の要素を抽出）", addTitle:"下位に要素を追加",
-    emptyTitle:"お題を、要素に因数分解する",
-    emptyBody:"お題を入力し、階層数を選んで「ツリーを生成」を押すと、そのお題を構成する要素や原因が MECE に抽出されます。各要素はさらに下位の要素へ枝分かれします。"
-  }
-};
-function M(){ return MODES[state.mode]||MODES.question; }
-
-let state = {
-  depth: DEFAULT_DEPTH,
-  mode: "question",    // 'question' | 'factor'
-  tree: null,          // array of nodes
-  topic: "",           // root question / theme
-  activeHistId: null,
-  loading: false,
-  loadingMsg: "",
-  lastError: null,     // {stage, err}
-  view: "tree",        // 'tree' | 'report'
-  modal: null,         // generic step-modal session
-  premises: [],        // [{q,a}] established premises for current topic
-  optionsCache: {},    // nodeId -> [4 options]
-  report: null,        // generated report object
+const DEFAULTS = { model:"gemini-3.5-flash", depth:3, reviewCount:2, branchLimit:7, questionCount:4, answerLimit:3, saveKey:true };
+const state = {
+  screen:"setup",
+  settings:{...DEFAULTS, apiKey:""},
+  question:"",
+  tree:[],           // [{id,text,flagged,children:[]}]
+  context:"",
+  questions:[],      // [{text,options[4],recommendedIndex,reason}]
+  answers:[],        // [{type:'option'|'free', index, text}]
+  qIndex:0,
+  result:null,       // {type,answers[],basis}
+  viewingSaved:false,
+  deleted:null,      // {parent, index, node} for undo
+  genResume:null     // function to resume generation from a step
 };
 
-/* ---------- tiny helpers ---------- */
+/* ============================================================
+   DOM HELPERS
+   ============================================================ */
 const $ = s => document.querySelector(s);
-const el = (t,c) => { const e=document.createElement(t); if(c)e.className=c; return e; };
-const uid = () => Math.random().toString(36).slice(2,10);
-const esc = s => (s||"").replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const $$ = s => Array.from(document.querySelectorAll(s));
+const el = (t,c,txt)=>{const e=document.createElement(t);if(c)e.className=c;if(txt!=null)e.textContent=txt;return e;};
+const esc = s => String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 
-function toast(msg){
-  const t=$("#toast");
-  t.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>${esc(msg)}`;
-  t.classList.add("show");
-  clearTimeout(toast._t);
-  toast._t=setTimeout(()=>t.classList.remove("show"),2200);
+function showScreen(name){
+  state.screen=name;
+  $$(".screen").forEach(s=>s.classList.remove("on"));
+  const map={setup:"s-setup",gen:"s-gen",review:"s-review",ask:"s-ask",result:"s-result",saved:"s-saved"};
+  $("#"+map[name]).classList.add("on");
+  updateRail(name);
+  window.scrollTo({top:0,behavior:"smooth"});
 }
-
-/* ============================================================
-   Settings: API key + model
-   ============================================================ */
-function loadSettings(){
-  const k = localStorage.getItem(LS.KEY) || "";
-  const m = localStorage.getItem(LS.MODEL) || "gemini-2.5-flash";
-  $("#model").value = m;
-  if(![...$("#model").options].some(o=>o.value===m)){ $("#model").value="gemini-2.5-flash"; }
-  const savedMode = localStorage.getItem(LS.MODE);
-  if(savedMode && MODES[savedMode]) state.mode = savedMode;
-  renderKeyState(k);
-}
-function renderKeyState(k){
-  const dot=$("#keyDot"), txt=$("#keyTxt");
-  if(k){
-    $("#apiKey").value="";
-    $("#apiKey").placeholder="••••••••  保存済み";
-    dot.classList.add("on"); txt.textContent="保存済み（このブラウザ）";
-    $("#keySave").textContent="変更";
-    let del=$("#keyDel");
-    if(!del){
-      del=el("button","mini-btn"); del.id="keyDel"; del.textContent="削除";
-      del.style.color="#E0A79E";
-      del.onclick=()=>{ localStorage.removeItem(LS.KEY); del.remove(); renderKeyState(""); toast("APIキーを削除しました"); };
-      $("#keyRow").appendChild(del);
-    }
-  }else{
-    dot.classList.remove("on"); txt.textContent="未設定";
-    $("#apiKey").placeholder="AIza… を貼り付け";
-    $("#keySave").textContent="保存";
-    const del=$("#keyDel"); if(del)del.remove();
-  }
-  renderKeyBanner();
-}
-function getKey(){ return localStorage.getItem(LS.KEY)||""; }
-
-function renderKeyBanner(){
-  const wrap=$("#keyBanner");
-  if(!wrap)return;
-  if(getKey()){ wrap.innerHTML=""; wrap.style.display="none"; return; }
-  wrap.style.display="";
-  wrap.innerHTML=`
-    <div class="key-banner">
-      <span class="kb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg></span>
-      <div class="kb-txt"><b>Gemini APIキーを設定してください。</b> キーはこのブラウザにのみ保存され、Anthropic等の外部には送信されません（送信先は Google の Gemini API のみ）。</div>
-      <input type="password" id="bannerKey" placeholder="AIza… を貼り付け" autocomplete="off" spellcheck="false">
-      <button class="kb-save" id="bannerSave">保存</button>
-      <a class="kb-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">キーを取得 ↗</a>
-    </div>`;
-  const save=()=>{ const v=$("#bannerKey").value.trim(); if(!v){ toast("キーを入力してください"); return; } localStorage.setItem(LS.KEY,v); renderKeyState(v); toast("APIキーを保存しました"); };
-  $("#bannerSave").onclick=save;
-  $("#bannerKey").addEventListener("keydown",e=>{ if(e.key==="Enter")save(); });
-}
-
-$("#keySave").onclick=()=>{
-  const v=$("#apiKey").value.trim();
-  if(!v){ toast("キーを入力してください"); return; }
-  localStorage.setItem(LS.KEY,v);
-  renderKeyState(v);
-  toast("APIキーを保存しました");
-};
-$("#apiKey").addEventListener("keydown",e=>{ if(e.key==="Enter")$("#keySave").click(); });
-$("#model").onchange=()=>localStorage.setItem(LS.MODEL,$("#model").value);
-
-$("#settingsHead").onclick=()=>$("#settings").classList.toggle("collapsed");
-
-/* sidebar toggle (narrow screens) */
-$("#menuToggle").onclick=()=>{ $("#side").classList.toggle("open"); $("#scrim").classList.toggle("show"); };
-$("#scrim").onclick=()=>{ $("#side").classList.remove("open"); $("#scrim").classList.remove("show"); };
-
-/* ============================================================
-   Depth stepper
-   ============================================================ */
-function buildSteps(){
-  const wrap=$("#steps"); wrap.innerHTML="";
-  for(let i=1;i<=MAX_DEPTH;i++){
-    const b=el("button","step"+(i===state.depth?" sel":""));
-    b.textContent=i;
-    b.onclick=()=>{ state.depth=i; buildSteps(); };
-    wrap.appendChild(b);
-  }
-}
-
-/* ---------- Tree-type (mode) toggle ---------- */
-function buildModes(){
-  const wrap=$("#modes"); wrap.innerHTML="";
-  Object.keys(MODES).forEach(key=>{
-    const b=el("button","mode-btn"+(key===state.mode?" sel":""));
-    b.textContent=MODES[key].label;
-    b.onclick=()=>{
-      if(state.mode===key)return;
-      state.mode=key; localStorage.setItem(LS.MODE,key);
-      buildModes(); applyModeToTopicPlaceholder();
-      if(!state.tree) renderCanvas(); // refresh empty-state copy
-    };
-    wrap.appendChild(b);
+function updateRail(name){
+  const order=["setup","gen","review","ask","result"];
+  const idx=order.indexOf(name);
+  $$("#rail .step").forEach(st=>{
+    const i=order.indexOf(st.dataset.s);
+    st.classList.remove("done","active");
+    if(name==="saved"){return;}
+    if(i<idx)st.classList.add("done");
+    else if(i===idx)st.classList.add("active");
   });
+  $("#rail").style.opacity = name==="saved" ? .4 : 1;
 }
-function applyModeToTopicPlaceholder(){
-  topicEl.placeholder = state.mode==="factor"
-    ? "分解したいテーマ・指標・事象を入力…（例：自社ECの売上）"
-    : "解き明かしたいテーマや中心的な問いを入力…（例：自社ECの売上をどう伸ばすか？）";
+
+/* ---- toast ---- */
+function toast(msg,{action,onAction,warn,timeout=4000}={}){
+  const t=el("div","toast"+(warn?" warn":""));
+  t.append(el("span",null,msg));
+  if(action){const b=el("button",null,action);b.onclick=()=>{onAction&&onAction();t.remove();};t.append(b);}
+  $("#toasts").append(t);
+  const to=setTimeout(()=>t.remove(),timeout);
+  t.addEventListener("click",e=>{if(e.target.tagName==="BUTTON")clearTimeout(to);});
+  return t;
 }
 
 /* ============================================================
-   Topic textarea autosize + voice
+   GEMINI API
    ============================================================ */
-const topicEl=$("#topic");
-function autosize(){ topicEl.style.height="auto"; topicEl.style.height=Math.min(Math.max(topicEl.scrollHeight,124),320)+"px"; }
-topicEl.addEventListener("input",autosize);
-topicEl.addEventListener("keydown",e=>{
-  if((e.metaKey||e.ctrlKey)&&e.key==="Enter"){ e.preventDefault(); $("#genBtn").click(); }
-});
-
-/* --- Web Speech API --- */
-let recog=null, recording=false;
-(function initVoice(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const mic=$("#mic");
-  if(!SR){ mic.style.display="none"; return; }
-  recog=new SR();
-  recog.lang="ja-JP"; recog.interimResults=true; recog.continuous=false;
-  let base="";
-  recog.onresult=e=>{
-    let interim="",final="";
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      const t=e.results[i][0].transcript;
-      if(e.results[i].isFinal)final+=t; else interim+=t;
-    }
-    topicEl.value=base+final+interim; autosize();
-    if(final)base+=final;
-  };
-  recog.onerror=e=>{ stopRec(); if(e.error==="not-allowed")toast("マイクへのアクセスが拒否されました"); };
-  recog.onend=()=>{ if(recording){ stopRec(); } };
-  function startRec(){ base=topicEl.value?topicEl.value+" ":""; recording=true; mic.classList.add("rec"); try{recog.start();}catch(_){} }
-  function stopRec(){ recording=false; mic.classList.remove("rec"); try{recog.stop();}catch(_){} }
-  window.stopRec=stopRec;
-  mic.onclick=()=> recording?stopRec():startRec();
-})();
-
-/* ============================================================
-   Gemini call + dynamic depth schema
-   ============================================================ */
-function nodeSchema(d){
-  if(d<=1){
-    return { type:"object", properties:{ question:{type:"string"} }, required:["question"], propertyOrdering:["question"] };
-  }
-  return {
-    type:"object",
-    properties:{
-      question:{type:"string"},
-      children:{ type:"array", minItems:2, maxItems:4, items:nodeSchema(d-1) }
-    },
-    required:["question","children"],
-    propertyOrdering:["question","children"]
-  };
+function stripFences(s){
+  return String(s||"").replace(/^\s*```(?:json)?/i,"").replace(/```\s*$/,"").trim();
 }
-function rootSchema(d){
-  return {
-    type:"object",
-    properties:{ questions:{ type:"array", minItems:2, maxItems:4, items:nodeSchema(d) } },
-    required:["questions"],
-    propertyOrdering:["questions"]
-  };
-}
-
-function premiseBlock(premises){
-  if(!premises||!premises.length) return "";
-  const lines=premises.map(p=>`- ${p.q} → ${p.a}`).join("\n");
-  return `\n\n# 明確化された前提（これらを踏まえて分解する）\n${lines}`;
-}
-function buildPrompt(theme,d,premises){
-  return `あなたはMECE（漏れなく・ダブりなく）による論点分解の専門家です。
-以下の「お題」を出発点として、それを解き明かすために答えるべき下位の「問い」を、問いの構造ツリーとして洗い出してください。
-
-# ルール
-- すべてのノードは必ず疑問文で記述する（例:「〜は何か？」「〜はどの程度か？」「なぜ〜なのか？」）。体言止め・名詞句は禁止。
-- 親の問いに答えるために解くべき下位の問いへと分解する。下位の問いをすべて解けば、親の問いに答えられる関係にする。
-- 各階層の分岐数は2〜4個。MECEを保てる自然な数を選ぶ。数合わせのために不自然な問いを足したり削ったりしない。
-- 同じ親を持つ兄弟の問いは、粒度・抽象度をそろえ、互いに重複させない。
-- ちょうど ${d} 階層の深さまで展開する（お題自身は階層に数えない）。すべての枝を ${d} 階層まで一律に展開する。
-- 日本語で、簡潔かつ具体的な問いにする。
-- 下記の前提がある場合は、それに沿って分解の範囲・粒度を具体化する。
-
-# お題
-${theme}${premiseBlock(premises)}`;
-}
-function buildFactorPrompt(theme,d,premises){
-  return `あなたはMECE（漏れなく・ダブりなく）による構造化の専門家です。
-以下の「お題」を出発点として、それを構成する要素や、それを生み出す要因・原因へと分解する「因数分解ツリー」を作成してください。
-
-# ルール
-- 各ノードは、構成要素・要因・原因を表す簡潔な名詞句（体言止め）で書く。疑問文にはしない。
-- 親を、それを構成する下位の要素・要因へ MECE に分解する（漏れなく・重複なく）。下位をすべて合わせると、親を過不足なく説明できる関係にする。
-- 分解の軸は「全体を構成要素に分ける」「結果を原因・要因に分ける」「指標を掛け算・足し算の因数に分ける」など。ただし同じ親の直下では一貫した1つの軸で分ける。
-- 各階層の分岐数は2〜4個。MECEを保てる自然な数を選ぶ。兄弟は粒度・抽象度をそろえ、互いに重複させない。
-- ちょうど ${d} 階層の深さまで展開する（お題自身は階層に数えない）。すべての枝を ${d} 階層まで一律に展開する。
-- 日本語で、簡潔かつ具体的に。
-- 下記の前提がある場合は、それに沿って分解の範囲・粒度を具体化する。
-
-# お題
-${theme}${premiseBlock(premises)}`;
-}
-/* pick the tree-generation prompt for the current mode */
-function treePrompt(theme,d,premises){
-  return state.mode==="factor" ? buildFactorPrompt(theme,d,premises) : buildPrompt(theme,d,premises);
-}
-
-/* ---- premise clarification ---- */
-function clarifySchema(){
-  return {
-    type:"object",
-    properties:{
-      needsClarification:{type:"boolean"},
-      questions:{ type:"array", items:{
-        type:"object",
-        properties:{ question:{type:"string"}, options:{ type:"array", minItems:4, maxItems:4, items:{type:"string"} } },
-        required:["question","options"], propertyOrdering:["question","options"]
-      } }
-    },
-    required:["needsClarification","questions"],
-    propertyOrdering:["needsClarification","questions"]
-  };
-}
-function buildClarifyPrompt(theme){
-  return `あなたは問題設定（イシュー設定）の専門家です。次の「お題」について、${M().clarifyTerm}を作る前に、明確にしておくべき前提が不足していないかを判断してください。
-
-# 判断と出力
-- お題が十分に具体的で、前提を確認しなくても質の高い分解ができるなら、needsClarification を false、questions を空配列にする。
-- 前提が不足している場合は needsClarification を true とし、前提を明確にするための質問を MECE（互いに重複せず、重要な前提を漏れなく）に洗い出す。本当に必要なものだけに絞り、多くても5問程度にする。
-- 前提を問う観点の例: 目的・ゴール、対象範囲、対象者や立場、期間・時間軸、制約条件（予算・資源など）、前提となる状況や環境。お題に関係する観点だけを選ぶ。
-- 各質問には、回答者が選べる現実的な選択肢をちょうど4つ用意する（簡潔・具体的で、互いに明確に異なる）。回答者は別途「その他（自由記述）」も選べる前提でよい。
-- すべて日本語。
-
-# お題
-${theme}`;
-}
-function buildDivePrompt(parentText,n){
-  if(state.mode==="factor"){
-    return `あなたはMECE（漏れなく・ダブりなく）による構造化の専門家です。
-以下の「親要素」を出発点として、それを構成する下位の要素・要因・原因へと分解してください。
-
-# ルール
-- 各ノードは、構成要素・要因・原因を表す簡潔な名詞句（体言止め）で書く。疑問文にはしない。
-- 親を、それを構成する下位の要素へ MECE に分解する（漏れなく・重複なく）。同じ親の直下では一貫した1つの軸で分ける。
-- 各階層の分岐数は2〜4個。兄弟は粒度・抽象度をそろえ、重複させない。
-- ちょうど ${n} 階層の深さまで一律に展開する（親要素自身は階層に数えない）。
-- 日本語で簡潔かつ具体的に。
-
-# 親要素
-${parentText}`;
-  }
-  return `あなたはMECE（漏れなく・ダブりなく）による論点分解の専門家です。
-以下の「親の問い」を出発点として、それを解くために答えるべき下位の「問い」を、問いの構造ツリーとして洗い出してください。
-
-# ルール
-- すべてのノードは必ず疑問文で記述する。体言止め・名詞句は禁止。
-- 親の問いに答えるために解くべき下位の問いへと分解する。
-- 各階層の分岐数は2〜4個。MECEを保てる自然な数を選ぶ。
-- 兄弟の問いは粒度をそろえ、重複させない。
-- ちょうど ${n} 階層の深さまで一律に展開する（親の問い自身は階層に数えない）。
-- 日本語で簡潔かつ具体的に。
-
-# 親の問い
-${parentText}`;
-}
-
-/* core POST: returns raw text or throws typed error */
-async function postGemini(prompt,schema){
-  const key=getKey();
-  if(!key){ const e=new Error("APIキーが設定されていません。画面上部または左下の設定から Gemini の APIキーを保存してください。"); e.kind="nokey"; throw e; }
-  const model=$("#model").value;
+async function geminiJSON(system, user, allowRetry=true){
+  const {apiKey, model}=state.settings;
+  if(!apiKey) throw new Error("APIキーが設定されていません。");
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body={
-    contents:[{role:"user",parts:[{text:prompt}]}],
-    generationConfig:{ responseMimeType:"application/json", responseSchema:schema }
+    systemInstruction:{parts:[{text:system}]},
+    contents:[{role:"user",parts:[{text:user}]}],
+    generationConfig:{responseMimeType:"application/json",temperature:0.6,maxOutputTokens:8192}
   };
   let res;
   try{
-    res=await fetch(ENDPOINT(model)+"?key="+encodeURIComponent(key),{
-      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
-    });
-  }catch(netErr){
-    const local=!/^https?:$/.test(location.protocol);
-    let msg,kind;
-    if(local){
-      msg="APIに接続できませんでした。このHTMLを「ローカルファイル」として開いているため、スマホのブラウザでは Gemini に接続できません。ファイルをネット上に公開し、その URL から開いてください。";
-      kind="local";
-    }else{
-      msg="ネットワークに接続できませんでした。接続を確認して再試行してください。";
-      kind="net";
-    }
-    const e=new Error(msg); e.kind=kind; throw e;
-  }
+    res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  }catch(e){ throw new Error("通信に失敗しました。ネットワーク接続を確認してください。"); }
   if(!res.ok){
     let detail="";
-    try{ const j=await res.json(); detail=j.error?.message||JSON.stringify(j); }catch(_){ detail=await res.text().catch(()=>""); }
-    let msg;
-    if(res.status===400 && /API key not valid|API_KEY_INVALID/i.test(detail)) msg="APIキーが無効です。キーを確認してください。";
-    else if(res.status===403) msg="このAPIキーではアクセスが許可されていません（権限またはキー制限を確認）。";
-    else if(res.status===429) msg="レート制限に達しました。少し待ってから再試行してください。";
-    else if(res.status>=500) msg="Gemini サーバー側でエラーが発生しました。時間をおいて再試行してください。";
-    else msg=`リクエストが失敗しました（HTTP ${res.status}）。`;
-    const e=new Error(msg); e.kind="http"; e.detail=detail; throw e;
+    try{const j=await res.json();detail=j?.error?.message||"";}catch(_){}
+    if(res.status===400&&/API key/i.test(detail)) throw new Error("APIキーが無効です。設定を確認してください。");
+    if(res.status===429) throw new Error("レート上限に達しました。少し待って再試行してください。");
+    throw new Error(`APIエラー (${res.status}) ${detail}`.trim());
   }
   const data=await res.json();
-  const cand=data.candidates?.[0];
-  const finish=cand?.finishReason;
-  if(finish==="SAFETY"||finish==="PROHIBITED_CONTENT"){ const e=new Error("安全性フィルタにより生成がブロックされました。表現を変えて試してください。"); e.kind="safety"; throw e; }
-  const text=cand?.content?.parts?.map(p=>p.text).filter(Boolean).join("")||"";
-  if(!text){ const e=new Error("空の応答が返りました。もう一度試してください。"); e.kind="empty"; throw e; }
-  return text;
-}
-
-function stripFences(text){ return text.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/,"").trim(); }
-function parseObj(text){
-  const raw=stripFences(text);
-  try{ return JSON.parse(raw); }
-  catch(_){
-    try{ const s=raw.indexOf("{"), e=raw.lastIndexOf("}"); if(s>=0&&e>s) return JSON.parse(raw.slice(s,e+1)); }catch(__){}
-    throw new Error("PARSE");
+  const cand=data?.candidates?.[0];
+  if(cand?.finishReason==="SAFETY") throw new Error("安全性フィルタにより応答が生成されませんでした。問いの表現を変えてお試しください。");
+  const text=(cand?.content?.parts||[]).map(p=>p.text||"").join("");
+  try{ return JSON.parse(stripFences(text)); }
+  catch(e){
+    if(allowRetry) return geminiJSON(system,user,false);
+    throw new Error("応答をJSONとして解析できませんでした。");
   }
-}
-
-async function callGemini(prompt,d){
-  const obj=parseObj(await postGemini(prompt,rootSchema(d)));
-  const arr=obj.questions||obj.children||(Array.isArray(obj)?obj:null);
-  if(!Array.isArray(arr)) throw new Error("PARSE");
-  return arr.map(normalize);
-}
-async function callGeminiObj(prompt,schema){ return parseObj(await postGemini(prompt,schema)); }
-
-function normalize(n){
-  return { id:uid(), question:(n.question||n.q||"").toString().trim()||"（空の問い）",
-           children:Array.isArray(n.children)?n.children.map(normalize):[], collapsed:false,
-           answer:(n.answer!=null&&n.answer!=="")?String(n.answer):null,
-           answerOther:!!n.answerOther };
-}
-
-/* generic: run fn with one silent retry when it throws a PARSE error */
-async function withParseRetry(fn){
-  try{ return await fn(); }
-  catch(err){
-    if(err.message==="PARSE"){
-      try{ return await fn(); }
-      catch(err2){ const e=new Error("応答を構造化データとして解釈できませんでした（再試行後も失敗）。もう一度お試しください。"); e.kind="parse"; throw e; }
-    }
-    throw err;
-  }
-}
-async function callWithRetry(prompt,d){ return withParseRetry(()=>callGemini(prompt,d)); }
-
-/* ============================================================
-   Generate: clarify premises -> build tree
-   ============================================================ */
-async function generateFull(){
-  const theme=topicEl.value.trim();
-  if(!theme){ toast("お題を入力してください"); topicEl.focus(); return; }
-  if(recording && window.stopRec) window.stopRec();
-  state.topic=theme; state.loading=true; state.loadingMsg="前提を確認しています…"; state.lastError=null; state.activeHistId=null;
-  state.view="tree"; state.report=null; state.optionsCache={}; state.premises=[];
-  renderCanvas();
-  try{
-    const clar=await withParseRetry(()=>callGeminiObj(buildClarifyPrompt(theme),clarifySchema()));
-    const qs=(clar&&clar.needsClarification&&Array.isArray(clar.questions))?clar.questions.filter(q=>q&&q.question):[];
-    if(qs.length){
-      state.loading=false;
-      const items=qs.slice(0,5).map(q=>{
-        const opts=(Array.isArray(q.options)?q.options.slice(0,4).map(s=>String(s)):[]);
-        while(opts.length<4) opts.push("（選択肢"+(opts.length+1)+"）");
-        return { question:String(q.question), path:[], options:opts, answer:null, answerOther:false };
-      });
-      renderCanvas();
-      openModal({
-        kind:"premise",
-        headerLabel:"前提の明確化",
-        countLabel:"前提",
-        note:"お題の前提を明確にするための質問です。答えると、その前提を踏まえて問いを構造化します。",
-        items, idx:0,
-        finishLabel:"前提を確定して生成 →",
-        onFinish:()=>{
-          state.premises=items.filter(i=>i.answer).map(i=>({q:i.question,a:i.answer}));
-          proceedTreeGeneration(theme,state.premises);
-        },
-        onClose:()=>{ state.loading=false; renderCanvas(); }
-      });
-      return;
-    }
-    // no clarification needed
-    proceedTreeGeneration(theme,[]);
-  }catch(err){
-    state.loading=false; state.lastError={stage:"clarify",err}; renderCanvas();
-  }
-}
-
-async function proceedTreeGeneration(theme,premises){
-  state.topic=theme; state.premises=premises||[]; state.loading=true; state.loadingMsg=M().gen;
-  state.lastError=null; state.view="tree"; renderCanvas();
-  try{
-    const tree=await callWithRetry(treePrompt(theme,state.depth,state.premises),state.depth);
-    state.tree=tree; state.loading=false;
-    renderCanvas();
-    saveHistory();
-  }catch(err){
-    state.loading=false; state.lastError={stage:"full",err}; renderCanvas();
-  }
-}
-
-/* regenerate the tree reusing already-established premises (skips clarify) */
-function regenerate(){ proceedTreeGeneration(state.topic,state.premises); }
-
-$("#genBtn").onclick=generateFull;
-
-/* deep dive on a node */
-async function deepDive(node,btn){
-  const key=getKey();
-  if(!key){ toast("先にAPIキーを設定してください"); return; }
-  const n=parseInt(prompt(`「${node.question}」を起点に、さらに何階層 深掘りしますか？（1〜3）`,"1"),10);
-  if(!n||n<1)return;
-  const depth=Math.min(n,3);
-  btn.classList.add("busy");
-  try{
-    const kids=await callWithRetry(buildDivePrompt(node.question,depth),depth);
-    node.children=node.children.concat(kids);
-    node.collapsed=false;
-    renderCanvas(); saveHistory();
-    toast("深掘りを追加しました");
-  }catch(err){
-    toast(err.message||"深掘りに失敗しました");
-  }finally{ btn.classList.remove("busy"); }
 }
 
 /* ============================================================
-   Rendering
+   TREE UTILITIES
    ============================================================ */
-const canvasInner=$("#canvasInner");
-
-function renderCanvas(){
-  if(state.loading){ renderLoading(); return; }
-  if(state.lastError){ renderError(); return; }
-  if(state.view==="report" && state.report){ renderReport(); return; }
-  if(!state.tree){ renderEmpty(); return; }
-  renderTree();
+let _idc=0;
+function normalizeTree(raw){
+  // raw: array of {text, children?, flagged?}
+  const out=[];
+  (raw||[]).forEach(n=>{
+    if(!n||typeof n.text!=="string"||!n.text.trim())return;
+    out.push({
+      id:"nd"+(_idc++),
+      text:n.text.trim(),
+      flagged:!!n.flagged,
+      children:normalizeTree(n.children||[])
+    });
+  });
+  return out;
 }
-
-function renderEmpty(){
-  canvasInner.innerHTML=`
-    <div class="empty">
-      <div class="mark">${state.mode==="factor"?"∑":"?"}</div>
-      <h2>${esc(M().emptyTitle)}</h2>
-      <p>${esc(M().emptyBody)}</p>
-      <div class="hint">
-        <span><b>種類</b> 問い / 因数分解</span>
-        <span><b>⌘/Ctrl + Enter</b> 生成</span>
-        <span><b>生成後</b> 編集・並べ替え・深掘り</span>
-      </div>
-    </div>`;
+function treeToOutline(nodes,d=0){
+  let s="";
+  nodes.forEach(n=>{
+    s+="  ".repeat(d)+"- "+n.text+(n.flagged?"  [論点ズレの疑い]":"")+"\n";
+    if(n.children.length)s+=treeToOutline(n.children,d+1);
+  });
+  return s;
 }
-
-function renderLoading(){
-  const modelName=$("#model").selectedOptions[0]?.textContent||"";
-  const msg=state.loadingMsg||"問いの構造を生成しています…";
-  const sub=state.loadingMsg?esc(modelName):`${state.depth} 階層 / ${esc(modelName)}`;
-  canvasInner.innerHTML=`
-    <div class="loading">
-      <div class="spinner"></div>
-      <div class="msg">${esc(msg)}</div>
-      <div class="sub">${sub}</div>
-    </div>`;
-}
-
-function renderError(){
-  const {err,stage}=state.lastError;
-  if(err.kind==="local"){
-    canvasInner.innerHTML=`
-      <div class="errbox">
-        <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>APIに接続できません（ローカルファイルのため）</h3>
-        <p>このHTMLを端末内のファイルとして開いているため、スマホのブラウザが Gemini への通信をブロックしています。ネット接続の問題ではありません。</p>
-        <p style="margin-top:10px"><b>解決方法：このファイルをネット上に公開し、その URL から開いてください。</b>バックエンドは不要で、APIキーは引き続きブラウザ内にのみ保存されます。</p>
-        <div class="detail">かんたんな公開手順（例）
-1. パソコンで Netlify Drop（app.netlify.com/drop）を開く
-2. このHTMLファイルをドラッグ&ドロップ
-3. 発行された https URL をスマホで開く
-（GitHub Pages / Cloudflare Pages / Vercel でも可）</div>
-        <button class="retry" id="retryBtn">再試行</button>
-      </div>`;
-    $("#retryBtn").onclick=()=>{ state.lastError=null; retryByStage(stage); };
-    return;
+function findNode(id,nodes=state.tree,parent=null){
+  for(let i=0;i<nodes.length;i++){
+    if(nodes[i].id===id)return{node:nodes[i],parent:parent||nodes,index:i,siblings:nodes};
+    const r=findNode(id,nodes[i].children,nodes[i].children);
+    if(r)return r;
   }
-  canvasInner.innerHTML=`
-    <div class="errbox">
-      <h3><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>生成できませんでした</h3>
-      <p>${esc(err.message||"不明なエラーが発生しました。")}</p>
-      ${err.detail?`<div class="detail">${esc(String(err.detail).slice(0,400))}</div>`:""}
-      <button class="retry" id="retryBtn">再試行</button>
-    </div>`;
-  $("#retryBtn").onclick=()=>{
-    if(err.kind==="nokey"){ $("#settings").classList.remove("collapsed"); $("#apiKey").focus(); state.lastError=null; renderCanvas(); return; }
-    state.lastError=null; retryByStage(stage);
+  return null;
+}
+function countNodes(nodes){let c=0;nodes.forEach(n=>{c+=1+countNodes(n.children);});return c;}
+
+/* ============================================================
+   PROMPTS
+   ============================================================ */
+const SYS_ARCHITECT = `あなたはMECEなロジックツリー設計に長けた戦略コンサルタントです。
+必ず有効なJSONのみを出力し、前置き・後書き・コードフェンスは一切付けません。日本語で記述します。
+「論点がズレない範囲で、可能な限り網羅的（MECE）に広げる」ことを最優先します。`;
+
+const SYS_ANALYST = `あなたは、与えられたロジックツリー（考えるための足場）を土台に、お題そのものへ包括的に答えるレポートを書く戦略アナリストです。
+ロジックツリーは答えを漏れなく検討するための枠組みであり、成果物ではありません。あなたの成果物は「お題への回答レポート」です。
+ツリーを機械的に列挙するのではなく、各枝がお題の答えにどう関わるかを論じて、答えを組み立てます。
+必ず有効なJSONのみを出力し、前置き・後書き・コードフェンスは一切付けません。日本語で記述します。`;
+
+function promptWiden(q,limit){
+  return `問い：「${q}」
+
+この問いに対する「取り得る回答の大分類（第1階層の選択肢）」を、互いに重複せず・全体として漏れがない（MECE）ように、網羅的に挙げてください。
+- まずこの問いの分野・文脈を捉え、それに即した切り口で分解すること。
+- これ以上MECEに割れないところまで広げるが、原則${limit}項目以内に収め、多すぎる場合は上位概念でまとめること。
+- 論点からズレた選択肢は含めない。
+
+JSON形式（厳守）：
+{"context":"この問いの分野・文脈を1文で","options":["選択肢1","選択肢2","..."]}`;
+}
+
+function promptDeepen(q,ctx,options,depth,limit){
+  return `問い：「${q}」
+文脈：${ctx}
+第1階層の選択肢：${JSON.stringify(options)}
+
+上記の各選択肢を、より具体的な下位の選択肢へと、縦方向にMECEで分解してツリーを完成させてください。
+- ツリーの深さは全体で${depth}階層（第1階層＝上記の選択肢、そこから最大${depth-1}段深く展開）。
+- 各階層は互いに重複せず漏れがないMECEに。1階層あたり原則${limit}項目以内。MECEなら少なくてよい。
+- 論点がズレない範囲で具体的に。末端ノードのchildrenは空配列[]。
+- 第1階層は与えた選択肢の文言をそのまま使う。
+
+JSON形式（厳守）。treeは第1階層ノードの配列：
+{"tree":[{"text":"選択肢","children":[{"text":"下位選択肢","children":[]}]}]}`;
+}
+
+function promptReview(q,outline,limit){
+  return `問い：「${q}」
+
+現在のロジックツリー（インデントは階層）：
+${outline}
+このツリーを、MECEの観点で徹底的にレビューし、改善版のツリー全体を返してください。
+【あなたができること】
+1. 横方向：各階層で、既存の選択肢と重複せず論点内に収まる「抜け（欠けている選択肢）」を追加する。
+2. 互いに重なる選択肢があれば、MECEになるよう分割・整理・言い換えする（情報は捨てない）。
+3. 縦方向：各枝について 1・2 と同じ処理を行い、具体化の抜けを補う。
+4. 論点から明確に外れているノードは、削除せずに "flagged": true を付ける（該当しなければ false）。
+【禁止事項】
+- 既存ノードの削除は行わない（統合で情報を失わせない）。
+- 1階層は原則${limit}項目以内に収める。
+
+改善版のツリー全体をJSONで返す（厳守）：
+{"tree":[{"text":"...","flagged":false,"children":[{"text":"...","flagged":false,"children":[]}]}]}`;
+}
+
+function promptQuestions(q,outline,n){
+  return `問い：「${q}」
+
+確定したロジックツリー：
+${outline}
+この選択肢空間から、質問者にとって最適な回答を絞り込むために、質問者へ尋ねるべき質問を作成してください。
+- 重要な順（絞り込みへの効き目が大きい順）に並べる。
+- 目安${n}問（多くても${n+1}問）。
+- 各質問は4つの選択肢を持ち、互いに重複しない。
+- 各質問について、現時点でAIが最も推奨する選択肢のインデックス（0-3）と、その簡潔な理由を示す。
+- 質問は質問者の状況・制約・優先度を引き出すものにする（ツリーの単なる復唱にしない）。
+
+JSON形式（厳守）：
+{"questions":[{"text":"質問文","options":["A","B","C","D"],"recommendedIndex":0,"reason":"推奨理由（1文）"}]}`;
+}
+
+function promptReportComprehensive(q,outline,limit){
+  return `お題：「${q}」
+
+答えを検討するためのロジックツリー（あなたの思考の足場）：
+${outline}
+このツリーを「漏れのない視点」として活用し、お題そのものに包括的に答えるレポートを書いてください。ツリーの各枝を機械的に並べるのではなく、それぞれがお題の答えにどう寄与するかを論じ、答えを組み立てます。
+
+出力する内容：
+- conclusion：お題に対する結論（直接の答え）を、まず明快に述べる。
+- examination：ツリーの主要な枝（主に第1階層の観点）を一つずつ取り上げ、それぞれが答えにどう寄与するか・どの程度有力かを評価する配列。
+- type：推奨を single（単一集中）か multiple（優先順位つき複数）で判断。
+- recommendations：上の検討の帰結としての推奨。multiple なら第1優先から最大${limit}件。各項目に title・priority(1が最優先)・reason・effect・execution。
+- premise：状況の絞り込みは無いため空文字 "" とする。
+
+JSON形式（厳守）：
+{"conclusion":"...","examination":[{"branch":"枝の観点","assessment":"答えへの効き方の評価"}],"type":"single","recommendations":[{"title":"...","priority":1,"reason":"...","effect":"...","execution":"..."}],"premise":""}`;
+}
+
+function promptReportRefined(q,outline,qa,limit){
+  return `お題：「${q}」
+
+答えを検討するためのロジックツリー（思考の足場）：
+${outline}
+お題主の状況（絞り込み質問への回答）：
+${qa}
+このツリーを「漏れのない視点」として使いつつ、上記の状況を踏まえて、お題そのものに答える包括的なレポートを書いてください。状況によって各枝の有力さがどう変わるかを反映します。
+
+出力する内容：
+- conclusion：状況を踏まえた、お題への結論（直接の答え）を、まず明快に述べる。
+- examination：ツリーの主要な枝を一つずつ取り上げ、この状況下で答えにどう寄与するか・有力か否かを評価する配列。
+- type：single か multiple を判断。
+- recommendations：検討の帰結としての推奨。multiple なら第1優先から最大${limit}件。各項目に title・priority(1が最優先)・reason・effect・execution。
+- premise：お題主のどの回答が結論をどう形づくったかを簡潔に。
+
+JSON形式（厳守）：
+{"conclusion":"...","examination":[{"branch":"...","assessment":"..."}],"type":"single","recommendations":[{"title":"...","priority":1,"reason":"...","effect":"...","execution":"..."}],"premise":"..."}`;
+}
+
+function normalizeResult(r,kind){
+  return {
+    kind,
+    conclusion: r.conclusion || "",
+    examination: Array.isArray(r.examination)
+      ? r.examination.filter(x=>x&&(x.branch||x.assessment)).map(x=>({branch:x.branch||"",assessment:x.assessment||""}))
+      : [],
+    type: r.type==="multiple" ? "multiple" : "single",
+    recommendations: (r.recommendations||r.answers||[]).map((x,i)=>({
+      title:x.title||"", priority:x.priority||i+1, reason:x.reason||"", effect:x.effect||"", execution:x.execution||""
+    })),
+    premise: r.premise || ""
   };
 }
-function retryByStage(stage){
-  if(stage==="report") generateReport();
-  else if(stage==="options") startAnswering();
-  else if(stage==="full") proceedTreeGeneration(state.topic,state.premises);
-  else generateFull(); // clarify or unknown -> start from the top
+
+/* ============================================================
+   PROGRESS UI (generation)
+   ============================================================ */
+function buildProgress(reviewCount){
+  const steps=[
+    {id:"widen",label:"横展開：回答の大分類を網羅",note:""},
+    {id:"deepen",label:"縦展開：各選択肢を具体化",note:""},
+  ];
+  for(let i=1;i<=reviewCount;i++) steps.push({id:"rev"+i,label:`AIレビュー ${i} 回目：MECEを磨く`,note:""});
+  const ul=$("#prog");ul.innerHTML="";
+  steps.forEach(s=>{
+    const li=el("li");li.dataset.id=s.id;
+    li.innerHTML=`<span class="p-ico"></span><span class="p-txt">${esc(s.label)}</span><span class="p-note"></span>`;
+    ul.append(li);
+  });
+  return steps;
+}
+function setStep(id,status,note){
+  const li=$(`#prog li[data-id="${id}"]`);if(!li)return;
+  li.classList.remove("active","done","error");
+  const ico=li.querySelector(".p-ico");
+  if(status==="active"){li.classList.add("active");ico.innerHTML='<span class="spin"></span>';}
+  else if(status==="done"){li.classList.add("done");ico.innerHTML='<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 6 11l5.5-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+  else if(status==="error"){li.classList.add("error");ico.innerHTML='<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';}
+  else{ico.innerHTML="";}
+  if(note!=null)li.querySelector(".p-note").textContent=note;
 }
 
-function renderTree(){
-  canvasInner.innerHTML="";
-  // toolbar
-  const tb=el("div","toolbar");
-  const leafCount=collectLeaves().length;
-  const answered=collectLeaves().filter(l=>l.node.answer).length;
-  const answerLabel = answered===0 ? "問いに答える"
-                    : answered<leafCount ? `回答を再開（${answered}/${leafCount}）`
-                    : "回答を見直す";
-  tb.innerHTML=`
-    <div class="root-chip"><span class="k">${esc(M().short)}</span><span class="txt" title="${esc(state.topic)}">${esc(state.topic)}</span></div>
-    ${state.mode==="question"?`<button class="tool-btn primary" id="answerBtn" title="各問いに4択で答え、結論レポートを作成">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>${answerLabel}</button>`:""}
-    ${(state.mode==="question"&&state.report)?`<button class="tool-btn" id="viewReport" title="作成済みのレポートを表示"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>レポート</button>`:""}
-    <button class="tool-btn" id="expandAll" title="すべて展開/折りたたみ">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>展開切替</button>
-    <button class="tool-btn" id="regen" title="同じお題・設定で作り直す">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>全体を再生成</button>
-    <button class="tool-btn" id="copyMd" title="Markdownでコピー">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Markdown</button>
-    <button class="tool-btn" id="dlJson" title="JSONで保存">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>JSON</button>`;
-  canvasInner.appendChild(tb);
-
-  const tree=el("div","tree");
-  state.tree.forEach(n=>tree.appendChild(renderNode(n,1,state.tree)));
-  canvasInner.appendChild(tree);
-
-  // root-level add
-  const addRoot=el("button","add-child");
-  addRoot.style.marginLeft="0";
-  addRoot.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>${esc(M().addRoot)}`;
-  addRoot.onclick=()=>{ const nn={id:uid(),question:M().newNode,children:[],collapsed:false}; state.tree.push(nn); renderCanvas(); saveHistory(); focusNode(nn.id); };
-  canvasInner.appendChild(addRoot);
-
-  // toolbar handlers
-  if($("#answerBtn"))$("#answerBtn").onclick=startAnswering;
-  if($("#viewReport"))$("#viewReport").onclick=()=>{ state.view="report"; renderCanvas(); $("#canvas").scrollTop=0; };
-  $("#regen").onclick=()=>{ if(confirm("同じお題・前提・階層数でツリーを作り直します。現在の編集内容と回答は失われます。よろしいですか？")) regenerate(); };
-  $("#copyMd").onclick=copyMarkdown;
-  $("#dlJson").onclick=downloadJson;
-  $("#expandAll").onclick=toggleExpandAll;
-}
-
-function renderNode(node,level,siblings){
-  const wrap=el("div","node"+(node.collapsed?" collapsed":""));
-  wrap.dataset.id=node.id;
-
-  const row=el("div","row");
-  const rl=el("div","row-line"); row.appendChild(rl);
-
-  const twist=el("button","twist"+(node.children.length?"":" empty"));
-  twist.innerHTML=`<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`;
-  twist.onclick=()=>{ node.collapsed=!node.collapsed; wrap.classList.toggle("collapsed"); saveHistory(); };
-  row.appendChild(twist);
-
-  const card=el("div","card"); card.dataset.id=node.id;
-
-  const lvl=el("div","lvl"); lvl.textContent="L"+level; lvl.title="ドラッグして移動"; lvl.draggable=true;
-  card.appendChild(lvl);
-
-  const q=el("div","q"); q.textContent=node.question; q.contentEditable="true"; q.spellcheck=false;
-  q.addEventListener("blur",()=>{ const v=q.textContent.trim(); node.question=v||"（空の問い）"; if(!v)q.textContent=node.question; saveHistory(); });
-  q.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); q.blur(); } });
-  card.appendChild(q);
-
-  const acts=el("div","node-acts");
-  acts.appendChild(mkAct("dive",M().diveTitle,
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z"/></svg>`,
-    (btn)=>deepDive(node,btn)));
-  acts.appendChild(mkAct("add",M().addTitle,
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
-    ()=>{ const nn={id:uid(),question:M().newNode,children:[],collapsed:false}; node.children.push(nn); node.collapsed=false; renderCanvas(); saveHistory(); focusNode(nn.id); }));
-  acts.appendChild(mkAct("del","削除",
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
-    ()=>{ const hasKids=node.children.length; if(hasKids && !confirm(`この${M().unit}と、その下位すべてを削除します。よろしいですか？`))return; const i=siblings.indexOf(node); if(i>=0)siblings.splice(i,1); renderCanvas(); saveHistory(); }));
-  card.appendChild(acts);
-
-  setupDrag(card,lvl,node,siblings,wrap);
-
-  row.appendChild(card);
-  wrap.appendChild(row);
-
-  const kidsWrap=el("div","node-children");
-  node.children.forEach(c=>kidsWrap.appendChild(renderNode(c,level+1,node.children)));
-  if(node.children.length){
-    const addC=el("button","add-child");
-    addC.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>${esc(M().add)}`;
-    addC.onclick=()=>{ const nn={id:uid(),question:M().newNode,children:[],collapsed:false}; node.children.push(nn); renderCanvas(); saveHistory(); focusNode(nn.id); };
-    kidsWrap.appendChild(addC);
+/* ============================================================
+   GENERATION FLOW
+   ============================================================ */
+async function runGeneration(){
+  $("#genErr").classList.remove("on");$("#genActions").style.display="none";
+  const {question,settings}=state;
+  const steps=buildProgress(settings.reviewCount);
+  // pipeline as list of async stages
+  const stages=[];
+  stages.push({id:"widen",run:async()=>{
+    const r=await geminiJSON(SYS_ARCHITECT,promptWiden(question,settings.branchLimit));
+    state.context=r.context||"";
+    state._widen=Array.isArray(r.options)?r.options:[];
+    if(!state._widen.length)throw new Error("選択肢を生成できませんでした。");
+  }});
+  stages.push({id:"deepen",run:async()=>{
+    const r=await geminiJSON(SYS_ARCHITECT,promptDeepen(question,state.context,state._widen,settings.depth,settings.branchLimit));
+    state.tree=normalizeTree(r.tree||[]);
+    if(!state.tree.length)throw new Error("ツリーを生成できませんでした。");
+  }});
+  for(let i=1;i<=settings.reviewCount;i++){
+    stages.push({id:"rev"+i,run:async()=>{
+      const outline=treeToOutline(state.tree);
+      const r=await geminiJSON(SYS_ARCHITECT,promptReview(question,outline,settings.branchLimit));
+      const t=normalizeTree(r.tree||[]);
+      if(t.length)state.tree=t;
+    }});
   }
-  wrap.appendChild(kidsWrap);
+  await runStages(stages,0);
+}
+
+async function runStages(stages,startIdx){
+  for(let i=startIdx;i<stages.length;i++){
+    const st=stages[i];
+    setStep(st.id,"active");
+    try{
+      await st.run();
+      const note = (st.id==="deepen"||st.id.startsWith("rev")) ? countNodes(state.tree)+" ノード" : "";
+      setStep(st.id,"done",note);
+    }catch(err){
+      setStep(st.id,"error");
+      showGenError(err.message, ()=>{ runStages(stages,i); });
+      return;
+    }
+  }
+  // all done
+  await new Promise(r=>setTimeout(r,320));
+  renderTree();
+  showScreen("review");
+}
+
+function showGenError(msg,resume){
+  const box=$("#genErr");
+  box.innerHTML=`解析または生成に失敗しました。<br><code>${esc(msg)}</code><br>途中までの結果は保持しています。`;
+  box.classList.add("on");
+  $("#genActions").style.display="flex";
+  state.genResume=resume;
+}
+
+/* ============================================================
+   TREE RENDERING (editable)
+   ============================================================ */
+function renderTree(){
+  const root=$("#tree");root.innerHTML="";
+  root.append(buildNodeList(state.tree,1));
+}
+function buildNodeList(nodes,depth){
+  const frag=document.createDocumentFragment();
+  nodes.forEach(n=>frag.append(buildNode(n,depth)));
+  return frag;
+}
+function buildNode(n,depth){
+  const wrap=el("div","node"+(n.flagged?" flagged":""));
+  wrap.dataset.id=n.id;
+  const row=el("div","row");
+  const badge=el("span","depth-badge","L"+depth);
+  const input=el("input","node-input");
+  input.value=n.text;input.setAttribute("aria-label","ノードの内容");
+  input.addEventListener("input",()=>{const f=findNode(n.id);if(f)f.node.text=input.value;});
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter"){e.preventDefault();input.blur();addSibling(n.id);}
+  });
+  const tag=el("span","flag-tag","論点ズレ？");
+
+  const ctrl=el("div","node-ctrl");
+  ctrl.append(
+    ctrlBtn("兄弟を追加","M8 3v10M3 8h10",()=>addSibling(n.id)),
+    ctrlBtn("子を追加","M8 3v6M5 12h6M8 9v3","child",()=>addChild(n.id)),
+    ctrlBtn("ズレフラグ","M4 2v12M4 3h7l-1.5 2.2L11 8H4","flag",()=>toggleFlag(n.id),n.flagged),
+    ctrlBtn("削除","M3 4h10M6 4V2.5h4V4M5 4l.6 9h4.8L11 4","del",()=>deleteNode(n.id))
+  );
+  row.append(badge,input,tag,ctrl);
+  wrap.append(row);
+  if(n.children&&n.children.length){
+    const kids=el("div","node-children");
+    kids.append(buildNodeList(n.children,depth+1));
+    wrap.append(kids);
+  }
   return wrap;
 }
-
-function mkAct(cls,title,svg,fn){
-  const b=el("button","act "+cls); b.title=title; b.innerHTML=svg;
-  b.onclick=e=>{ e.stopPropagation(); fn(b); };
+function ctrlBtn(title,path,kind,onClick,active){
+  // supports (title,path,onClick) or (title,path,kind,onClick,active)
+  if(typeof kind==="function"){active=onClick;onClick=kind;kind="";}
+  const b=el("button","nb "+(kind||""));
+  if(kind==="flag"&&active)b.classList.add("on");
+  b.title=title;b.setAttribute("aria-label",title);
+  b.innerHTML=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="${path}" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  b.onclick=onClick;
   return b;
+}
+function addSibling(id){
+  const f=findNode(id);if(!f)return;
+  const nn={id:"nd"+(_idc++),text:"",flagged:false,children:[]};
+  f.siblings.splice(f.index+1,0,nn);
+  renderTree();focusNode(nn.id);
+}
+function addChild(id){
+  const f=findNode(id);if(!f)return;
+  const nn={id:"nd"+(_idc++),text:"",flagged:false,children:[]};
+  f.node.children.push(nn);
+  renderTree();focusNode(nn.id);
+}
+function toggleFlag(id){
+  const f=findNode(id);if(!f)return;
+  f.node.flagged=!f.node.flagged;renderTree();
+}
+function deleteNode(id){
+  const f=findNode(id);if(!f)return;
+  const removed=f.siblings.splice(f.index,1)[0];
+  state.deleted={siblings:f.siblings,index:f.index,node:removed};
+  renderTree();
+  toast("ノードを削除しました",{warn:true,action:"取り消す",onAction:()=>{
+    if(state.deleted){state.deleted.siblings.splice(state.deleted.index,0,state.deleted.node);state.deleted=null;renderTree();}
+  }});
 }
 function focusNode(id){
   requestAnimationFrame(()=>{
-    const q=document.querySelector(`.card[data-id="${id}"] .q`);
-    if(q){ q.focus(); document.getSelection().selectAllChildren(q); }
-  });
-}
-
-/* ---------- expand/collapse all ---------- */
-function toggleExpandAll(){
-  let anyOpen=false;
-  (function walk(ns){ ns.forEach(n=>{ if(n.children.length){ if(!n.collapsed)anyOpen=true; walk(n.children);} }); })(state.tree);
-  const collapse=anyOpen;
-  (function walk(ns){ ns.forEach(n=>{ if(n.children.length)n.collapsed=collapse; walk(n.children); }); })(state.tree);
-  renderCanvas(); saveHistory();
-}
-
-/* ============================================================
-   Drag & drop (reorder siblings + reparent)
-   ============================================================ */
-let dragCtx=null;
-function findParentList(id,list){
-  for(const n of list){
-    if(n.id===id)return list;
-    const f=findParentList(id,n.children);
-    if(f)return f;
-  }
-  return null;
-}
-function isDescendant(node,targetId){
-  if(node.id===targetId)return true;
-  return node.children.some(c=>isDescendant(c,targetId));
-}
-function findNode(id,list){
-  for(const n of list){ if(n.id===id)return n; const f=findNode(id,n.children); if(f)return f; }
-  return null;
-}
-
-function setupDrag(card,handle,node,siblings,wrap){
-  handle.addEventListener("dragstart",e=>{
-    dragCtx={id:node.id};
-    wrap.classList.add("dragging");
-    e.dataTransfer.effectAllowed="move";
-    try{e.dataTransfer.setData("text/plain",node.id);}catch(_){}
-    // use whole card as drag image
-    try{e.dataTransfer.setDragImage(card,20,18);}catch(_){}
-  });
-  handle.addEventListener("dragend",()=>{
-    wrap.classList.remove("dragging");
-    document.querySelectorAll(".card.drop-into,.card.drop-before,.card.drop-after").forEach(c=>c.classList.remove("drop-into","drop-before","drop-after"));
-    dragCtx=null;
-  });
-
-  card.addEventListener("dragover",e=>{
-    if(!dragCtx||dragCtx.id===node.id)return;
-    const dragNode=findNode(dragCtx.id,state.tree);
-    if(dragNode&&isDescendant(dragNode,node.id))return; // can't drop into own subtree
-    e.preventDefault(); e.dataTransfer.dropEffect="move";
-    const r=card.getBoundingClientRect();
-    const y=e.clientY-r.top, h=r.height;
-    card.classList.remove("drop-into","drop-before","drop-after");
-    if(y<h*0.28)card.classList.add("drop-before");
-    else if(y>h*0.72)card.classList.add("drop-after");
-    else card.classList.add("drop-into");
-  });
-  card.addEventListener("dragleave",()=>card.classList.remove("drop-into","drop-before","drop-after"));
-  card.addEventListener("drop",e=>{
-    if(!dragCtx||dragCtx.id===node.id)return;
-    e.preventDefault(); e.stopPropagation();
-    const mode=card.classList.contains("drop-into")?"into":card.classList.contains("drop-before")?"before":"after";
-    card.classList.remove("drop-into","drop-before","drop-after");
-    const dragNode=findNode(dragCtx.id,state.tree);
-    if(!dragNode||isDescendant(dragNode,node.id))return;
-    // remove from old list
-    const oldList=findParentList(dragCtx.id,state.tree);
-    if(!oldList)return;
-    oldList.splice(oldList.indexOf(dragNode),1);
-    if(mode==="into"){
-      node.children.push(dragNode); node.collapsed=false;
-    }else{
-      const list=findParentList(node.id,state.tree)||siblings;
-      let idx=list.indexOf(node);
-      if(mode==="after")idx+=1;
-      list.splice(idx,0,dragNode);
-    }
-    renderCanvas(); saveHistory();
+    const inp=document.querySelector(`.node[data-id="${id}"] .node-input`);
+    if(inp){inp.focus();inp.scrollIntoView({block:"center",behavior:"smooth"});}
   });
 }
 
 /* ============================================================
-   Export: Markdown + JSON
+   QUESTIONS FLOW
    ============================================================ */
-function toMarkdown(){
-  let out="# "+state.topic+"\n\n";
-  (function walk(ns,depth){
-    ns.forEach(n=>{
-      out+="  ".repeat(depth)+"- "+n.question+"\n";
-      walk(n.children,depth+1);
-    });
-  })(state.tree,0);
-  return out;
-}
-async function copyMarkdown(){
-  const md=toMarkdown();
-  try{ await navigator.clipboard.writeText(md); toast("Markdownをコピーしました"); }
-  catch(_){
-    const ta=el("textarea"); ta.value=md; ta.style.position="fixed"; ta.style.opacity="0";
-    document.body.appendChild(ta); ta.select();
-    try{document.execCommand("copy"); toast("Markdownをコピーしました");}catch(e){toast("コピーに失敗しました");}
-    ta.remove();
-  }
-}
-function downloadJson(){
-  const payload={ version:2, type:state.mode==="factor"?"factor-tree":"question-tree", mode:state.mode,
-                  topic:state.topic, depth:state.depth, premises:state.premises||[],
-                  createdAt:new Date().toISOString(), tree:stripTree(state.tree) };
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=el("a"); a.href=url;
-  a.download="qtree-"+(state.topic.slice(0,20).replace(/[\/\\:*?"<>|\s]+/g,"_")||"tree")+".json";
-  a.click(); URL.revokeObjectURL(url);
-  toast("JSONを保存しました");
-}
-function stripTree(ns){ return ns.map(n=>{ const o={question:n.question,children:stripTree(n.children)}; if(n.answer!=null&&n.answer!=="")o.answer=n.answer; if(n.answerOther)o.answerOther=true; return o; }); }
-
-/* ============================================================
-   History (localStorage)
-   ============================================================ */
-function loadHistArr(){ try{ return JSON.parse(localStorage.getItem(LS.HIST)||"[]"); }catch(_){ return []; } }
-function writeHistArr(a){ try{ localStorage.setItem(LS.HIST,JSON.stringify(a)); }catch(e){ toast("保存容量の上限に達しました。古い履歴を削除してください。"); } }
-
-function saveHistory(){
-  if(!state.tree)return;
-  const arr=loadHistArr();
-  const rec={ id:state.activeHistId||uid(), topic:state.topic, depth:state.depth, mode:state.mode,
-              premises:state.premises||[], updatedAt:Date.now(), tree:stripTree(state.tree) };
-  if(state.activeHistId){
-    const i=arr.findIndex(r=>r.id===state.activeHistId);
-    if(i>=0)arr[i]=rec; else arr.unshift(rec);
-  }else{
-    arr.unshift(rec); state.activeHistId=rec.id;
-  }
-  // cap at 60
-  if(arr.length>60)arr.length=60;
-  writeHistArr(arr);
-  renderHistory();
-}
-function renderHistory(){
-  const arr=loadHistArr();
-  const list=$("#histList"); list.innerHTML="";
-  $("#histCount").textContent=arr.length?arr.length:"";
-  if(!arr.length){ list.innerHTML=`<div class="hist-empty">まだ履歴はありません。お題を生成すると、ここに自動保存されます。</div>`; return; }
-  arr.forEach(r=>{
-    const it=el("div","hist-item"+(r.id===state.activeHistId?" active":""));
-    const main=el("div","hist-main");
-    const q=el("div","hist-q"); q.textContent=r.topic;
-    const meta=el("div","hist-meta"); meta.textContent=`${MODES[r.mode||"question"].short} · ${r.depth}層 · ${fmtDate(r.updatedAt)}`;
-    main.appendChild(q); main.appendChild(meta);
-    main.onclick=()=>openHistory(r.id);
-    const del=el("button","hist-del"); del.innerHTML="×"; del.title="削除";
-    del.onclick=e=>{ e.stopPropagation(); deleteHistory(r.id); };
-    it.appendChild(main); it.appendChild(del);
-    list.appendChild(it);
-  });
-}
-function fmtDate(ts){
-  const d=new Date(ts), now=new Date();
-  const p=n=>String(n).padStart(2,"0");
-  if(d.toDateString()===now.toDateString())return `${p(d.getHours())}:${p(d.getMinutes())}`;
-  return `${d.getMonth()+1}/${d.getDate()}`;
-}
-function openHistory(id){
-  const arr=loadHistArr();
-  const r=arr.find(x=>x.id===id); if(!r)return;
-  state.topic=r.topic; state.depth=r.depth; state.mode=MODES[r.mode]?r.mode:"question"; state.tree=r.tree.map(normalize);
-  state.activeHistId=id; state.lastError=null; state.loading=false;
-  state.view="tree"; state.report=null; state.modal=null; state.optionsCache={};
-  state.premises=Array.isArray(r.premises)?r.premises:[];
-  topicEl.value=r.topic; autosize(); buildSteps(); buildModes(); applyModeToTopicPlaceholder();
-  renderCanvas(); renderHistory();
-  $("#canvas").scrollTop=0;
-}
-function deleteHistory(id){
-  const arr=loadHistArr().filter(r=>r.id!==id);
-  writeHistArr(arr);
-  if(state.activeHistId===id){ state.activeHistId=null; }
-  renderHistory();
-}
-
-/* ============================================================
-   Answering flow: leaves -> options -> per-question modal -> report
-   ============================================================ */
-function collectLeaves(){
-  const out=[];
-  (function walk(ns,path){
-    ns.forEach(n=>{
-      if(n.children.length) walk(n.children,path.concat(n.question));
-      else out.push({node:n,path});
-    });
-  })(state.tree||[],[]);
-  return out;
-}
-
-function optionsSchema(count){
-  return {
-    type:"object",
-    properties:{ items:{ type:"array", minItems:count, maxItems:count, items:{
-      type:"object",
-      properties:{ index:{type:"integer"}, options:{ type:"array", minItems:4, maxItems:4, items:{type:"string"} } },
-      required:["index","options"], propertyOrdering:["index","options"]
-    } } },
-    required:["items"], propertyOrdering:["items"]
-  };
-}
-function buildOptionsPrompt(theme,leaves){
-  const lines=leaves.map((l,i)=>{
-    const ctx=l.path.length?`（文脈: ${l.path.join(" › ")}）`:"";
-    return `${i+1}. ${l.node.question} ${ctx}`;
-  }).join("\n");
-  return `あなたは意思決定を支援するアナリストです。あるテーマを分解した「問い」に対して、回答者が選べる現実的な選択肢を用意します。
-
-# テーマ（お題）
-${theme}
-
-# 各問いに対して行うこと
-下の番号付きの問いそれぞれについて、その問いへの答えとして考えられる、現実的で互いに明確に異なる選択肢を「ちょうど4つ」提示してください。
-- 各選択肢は簡潔（おおむね40字以内）で、具体的にする。
-- 4つは網羅的かつ重複しないようにし、代表的な立場・方向性をカバーする。
-- 日本語で書く。
-- 出力は items 配列とし、各要素の index に問いの番号（1始まり）、options に4つの選択肢を入れる。問いの番号と対応させること。
-
-# 問い一覧
-${lines}`;
-}
-
-async function startAnswering(){
-  if(!state.tree){ return; }
-  if(!getKey()){ toast("先にAPIキーを設定してください"); renderKeyBanner(); $("#keyBanner")?.scrollIntoView({behavior:"smooth"}); return; }
-  const leaves=collectLeaves();
-  if(!leaves.length){ toast("答える問いがありません"); return; }
-
-  // which leaves still need options?
-  const need=leaves.filter(l=>!state.optionsCache[l.node.id]);
-  if(need.length){
-    state.loading=true; state.loadingMsg="選択肢を生成しています…"; state.view="tree"; renderCanvas();
-    try{
-      const res=await withParseRetry(()=>callGeminiObj(buildOptionsPrompt(state.topic,need),optionsSchema(need.length)));
-      const items=Array.isArray(res.items)?res.items:[];
-      need.forEach((l,i)=>{
-        // map by index if valid, else by position
-        let it=items.find(x=>x.index===i+1);
-        if(!it||!Array.isArray(it.options)) it=items[i];
-        const opts=(it&&Array.isArray(it.options))?it.options.slice(0,4).map(s=>String(s)):[];
-        while(opts.length<4) opts.push("（選択肢"+(opts.length+1)+"）");
-        state.optionsCache[l.node.id]=opts;
-      });
-      state.loading=false;
-    }catch(err){
-      state.loading=false; state.lastError={stage:"options",err}; renderCanvas(); return;
-    }
-  }
-  // build modal items that read/write answers directly on the leaf nodes
-  let start=leaves.findIndex(l=>!l.node.answer);
-  if(start<0)start=0;
-  const items=leaves.map(l=>({
-    node:l.node, question:l.node.question, path:l.path, options:state.optionsCache[l.node.id]||[],
-    get answer(){return this.node.answer}, set answer(v){this.node.answer=v},
-    get answerOther(){return this.node.answerOther}, set answerOther(v){this.node.answerOther=v}
-  }));
-  state.view="tree"; renderCanvas();
-  openModal({
-    kind:"answer",
-    countLabel:"設問",
-    items, idx:start,
-    finishLabel:"回答を完了 →",
-    onChange:()=>saveHistory(),
-    onClose:()=>{ saveHistory(); renderCanvas(); toast("回答を保存しました（続きから再開できます）"); },
-    validateFinish:()=>{
-      const un=items.filter(i=>!i.answer).length;
-      if(un>0 && !confirm(`未回答が ${un} 問あります。このままレポートを作成しますか？\n（「キャンセル」で最初の未回答に戻れます）`)){
-        const j=items.findIndex(i=>!i.answer); return {jumpTo:j>=0?j:0};
-      }
-      return {ok:true};
-    },
-    onFinish:()=>generateReport()
-  });
-}
-
-/* ============================================================
-   Generic step modal (used for premise clarification & answering)
-   ============================================================ */
-const modalRoot=$("#modalRoot");
-function closeModal(){ modalRoot.innerHTML=""; modalRoot.classList.remove("show"); state.modal=null; }
-function openModal(session){ state.modal=session; modalRoot.classList.add("show"); renderModal(); }
-
-function renderModal(){
-  const M=state.modal; if(!M)return;
-  const total=M.items.length, idx=M.idx, it=M.items[idx];
-  const opts=it.options||[];
-  const isCustom = it.answer!=null && !opts.includes(it.answer);
-  const pct=Math.round((idx/total)*100);
-  const countLabel=M.countLabel||"設問";
-  const isLast = idx===total-1;
-
-  const crumb = (it.path && it.path.length)
-      ? `<div class="qm-path">${it.path.map(esc).join(' <span class="sep">›</span> ')}</div>`
-      : (M.headerLabel ? `<div class="qm-path">${esc(M.headerLabel)}</div>` : "");
-  const note = (idx===0 && M.note) ? `<div class="qm-note">${esc(M.note)}</div>` : "";
-  const optHtml = opts.map((o,i)=>{
-    const sel = (!isCustom && it.answer===o) ? " sel" : "";
-    return `<button class="qm-opt${sel}" data-opt="${i}"><span class="qm-mark">${String.fromCharCode(65+i)}</span><span class="qm-otext">${esc(o)}</span></button>`;
-  }).join("");
-  const otherSel = isCustom ? " sel" : "";
-  const nextLabel = isLast ? (M.finishLabel||"完了 →") : "次へ →";
-
-  modalRoot.innerHTML=`
-    <div class="qmodal" role="dialog" aria-modal="true">
-      <div class="qm-top">
-        <div class="qm-prog"><div class="qm-prog-bar" style="width:${pct}%"></div></div>
-        <div class="qm-count">${esc(countLabel)} ${idx+1} / ${total}</div>
-        <button class="qm-close" id="qmClose" title="閉じる">✕</button>
-      </div>
-      <div class="qm-body">
-        ${note}
-        ${crumb}
-        <div class="qm-q">${esc(it.question)}</div>
-        <div class="qm-opts">
-          ${optHtml}
-          <button class="qm-opt qm-other${otherSel}" data-opt="other">
-            <span class="qm-mark">＋</span>
-            <span class="qm-otext">その他（自由に記述）</span>
-          </button>
-          <textarea class="qm-otherfield" id="qmOther" placeholder="自分の答えを入力…" style="display:${isCustom?'block':'none'}">${isCustom?esc(it.answer):""}</textarea>
-        </div>
-      </div>
-      <div class="qm-foot">
-        <button class="qm-btn ghost" id="qmBack" ${idx===0?"disabled":""}>← 戻る</button>
-        <div class="qm-foot-r">
-          <button class="qm-btn ghost" id="qmSkip" title="この問いを飛ばす">スキップ</button>
-          <button class="qm-btn primary" id="qmNext" ${it.answer?"":"disabled"}>${nextLabel}</button>
-        </div>
-      </div>
-    </div>`;
-
-  const otherField=$("#qmOther");
-  const refreshNext=()=>{ $("#qmNext").disabled = !it.answer; };
-
-  modalRoot.querySelectorAll(".qm-opt").forEach(btn=>{
-    btn.onclick=()=>{
-      const which=btn.dataset.opt;
-      modalRoot.querySelectorAll(".qm-opt").forEach(b=>b.classList.remove("sel"));
-      btn.classList.add("sel");
-      if(which==="other"){
-        it.answerOther=true;
-        otherField.style.display="block"; otherField.focus();
-        it.answer=otherField.value.trim()||null;
-      }else{
-        it.answerOther=false;
-        otherField.style.display="none";
-        it.answer=opts[parseInt(which,10)];
-      }
-      refreshNext();
-    };
-  });
-  otherField.addEventListener("input",()=>{ it.answer=otherField.value.trim()||null; it.answerOther=true; refreshNext(); });
-
-  $("#qmClose").onclick=()=>{ closeModal(); if(M.onClose)M.onClose(); };
-  $("#qmBack").onclick=()=>{ if(M.idx>0){ M.idx--; renderModal(); } };
-  $("#qmSkip").onclick=()=>{ modalAdvance(); };
-  $("#qmNext").onclick=()=>{ if(!it.answer)return; modalAdvance(); };
-}
-
-function modalAdvance(){
-  const M=state.modal; if(!M)return;
-  if(M.onChange)M.onChange();
-  if(M.idx < M.items.length-1){ M.idx++; renderModal(); return; }
-  if(M.validateFinish){ const r=M.validateFinish(); if(r && r.jumpTo!=null){ M.idx=r.jumpTo; renderModal(); return; } }
-  closeModal();
-  if(M.onFinish)M.onFinish();
-}
-
-/* ============================================================
-   Report generation
-   ============================================================ */
-function reportSchema(){
-  return {
-    type:"object",
-    properties:{
-      title:{type:"string"},
-      overview:{type:"string"},
-      sections:{ type:"array", items:{
-        type:"object",
-        properties:{ heading:{type:"string"}, body:{type:"string"}, points:{type:"array",items:{type:"string"}} },
-        required:["heading","body"], propertyOrdering:["heading","body","points"]
-      } },
-      conclusion:{type:"string"}
-    },
-    required:["title","overview","sections","conclusion"],
-    propertyOrdering:["title","overview","sections","conclusion"]
-  };
-}
-function buildQAOutline(){
-  let out="";
-  (function walk(ns,depth){
-    ns.forEach(n=>{
-      out+="  ".repeat(depth)+"- "+n.question;
-      if(!n.children.length && n.answer) out+="  → 回答: "+n.answer;
-      else if(!n.children.length) out+="  → 回答: （未回答）";
-      out+="\n";
-      walk(n.children,depth+1);
-    });
-  })(state.tree,0);
-  return out;
-}
-function buildReportPrompt(){
-  return `あなたは戦略コンサルタントです。あるお題について、MECEに分解した問いと、それぞれへの回答が揃っています。これらを統合し、意思決定に使える読みやすいレポートを作成してください。
-
-# お題
-${state.topic}${premiseBlock(state.premises)}
-
-# 問いと回答（ツリー構造・インデントは階層）
-${buildQAOutline()}
-
-# 作成するレポートの要件
-- title: レポートの表題（お題に即した簡潔なもの）。
-- overview: 全体の概要（このお題で何を検討したか、回答全体から見える大枠）。2〜4文。
-- sections: 上位の問い（第1階層）ごと、または論理的なまとまりごとのセクション。各セクションは heading（見出し）、body（回答内容を根拠として統合した分析。具体的な回答に触れる）、points（任意で要点の箇条書き）を持つ。
-- conclusion: お題に対する明確な結論・推奨。回答から導ける最も妥当な答えを、理由とともに述べる。
-- すべて日本語。回答内容に基づき、事実と示唆を混同しない。回答が未回答の箇所は無理に断定しない。`;
-}
-async function generateReport(){
-  if(!getKey()){ toast("APIキーが必要です"); return; }
-  state.loading=true; state.loadingMsg="結論レポートを作成しています…"; state.view="tree"; state.lastError=null; renderCanvas();
+async function generateQuestions(){
+  // strip empty nodes first
+  pruneEmpty(state.tree);
+  if(!state.tree.length){toast("ツリーが空です。ノードを追加してください。");return;}
+  const t=toast("質問を生成しています…",{timeout:60000});
   try{
-    const rep=await withParseRetry(()=>callGeminiObj(buildReportPrompt(),reportSchema()));
-    rep.generatedAt=new Date().toISOString();
-    state.report=rep; state.loading=false; state.view="report";
-    renderCanvas(); saveHistory(); $("#canvas").scrollTop=0;
-  }catch(err){
-    state.loading=false; state.lastError={stage:"report",err}; renderCanvas();
+    const outline=treeToOutline(state.tree);
+    const r=await geminiJSON(SYS_ARCHITECT,promptQuestions(state.question,outline,state.settings.questionCount));
+    state.questions=(r.questions||[]).filter(q=>q&&q.text&&Array.isArray(q.options)).map(q=>({
+      text:q.text,
+      options:q.options.slice(0,4),
+      recommendedIndex:Math.max(0,Math.min(3,Number(q.recommendedIndex)||0)),
+      reason:q.reason||""
+    }));
+    if(!state.questions.length)throw new Error("質問を生成できませんでした。");
+    state.answers=state.questions.map(q=>({type:"option",index:q.recommendedIndex,text:""}));
+    state.qIndex=0;
+    t.remove();
+    showScreen("ask");renderQuestion();
+  }catch(err){t.remove();toast("質問生成に失敗："+err.message,{timeout:6000});}
+}
+function pruneEmpty(nodes){
+  for(let i=nodes.length-1;i>=0;i--){
+    pruneEmpty(nodes[i].children);
+    if(!nodes[i].text.trim()&&nodes[i].children.length===0)nodes.splice(i,1);
   }
 }
-
-/* ---------- Report rendering ---------- */
-function renderReport(){
-  const r=state.report;
-  canvasInner.innerHTML="";
-  const bar=el("div","report-actions");
-  bar.innerHTML=`
-    <button class="tool-btn" id="backToTree"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>ツリーに戻る</button>
-    <div class="spacer"></div>
-    <button class="tool-btn" id="regenReport" title="回答をもとに作り直す"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 14.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0 0 20.5 15"/></svg>再作成</button>
-    <button class="tool-btn" id="dlReportMd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Markdown</button>
-    <button class="tool-btn primary" id="dlReportHtml"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>HTMLで保存</button>
-    <button class="tool-btn" id="printReport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>印刷 / PDF</button>`;
-  canvasInner.appendChild(bar);
-
-  const rep=el("article","report");
-  rep.innerHTML=reportInnerHtml(r);
-  canvasInner.appendChild(rep);
-
-  $("#backToTree").onclick=()=>{ state.view="tree"; renderCanvas(); $("#canvas").scrollTop=0; };
-  $("#regenReport").onclick=()=>{ if(confirm("現在の回答をもとにレポートを作り直します。よろしいですか？")) generateReport(); };
-  $("#dlReportMd").onclick=downloadReportMd;
-  $("#dlReportHtml").onclick=downloadReportHtml;
-  $("#printReport").onclick=()=>window.print();
-}
-function reportInnerHtml(r){
-  const date=new Date(r.generatedAt||Date.now());
-  const dstr=`${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,"0")}.${String(date.getDate()).padStart(2,"0")}`;
-  const secs=(r.sections||[]).map((s,i)=>`
-    <section class="rp-sec">
-      <h2><span class="rp-num">${String(i+1).padStart(2,"0")}</span>${esc(s.heading||"")}</h2>
-      ${paras(s.body)}
-      ${Array.isArray(s.points)&&s.points.length?`<ul class="rp-points">${s.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`:""}
-    </section>`).join("");
-  return `
-    <header class="rp-head">
-      <div class="rp-eyebrow">結論レポート · ${dstr}</div>
-      <h1>${esc(r.title||state.topic)}</h1>
-      <div class="rp-topic"><span class="rp-k">お題</span>${esc(state.topic)}</div>
-    </header>
-    <div class="rp-overview">${paras(r.overview)}</div>
-    ${secs}
-    <section class="rp-conclusion">
-      <h2>結論</h2>
-      ${paras(r.conclusion)}
-    </section>
-    <details class="rp-appendix">
-      <summary>回答の一覧を見る</summary>
-      ${qaListHtml()}
-    </details>`;
-}
-function paras(text){ return String(text||"").split(/\n{2,}|\n/).filter(s=>s.trim()).map(p=>`<p>${esc(p)}</p>`).join(""); }
-function qaListHtml(){
-  const leaves=collectLeaves();
-  return `<ol class="rp-qa">${leaves.map(l=>`<li><div class="rp-qa-q">${esc(l.node.question)}</div><div class="rp-qa-a">${l.node.answer?esc(l.node.answer):'<span class="rp-na">未回答</span>'}</div></li>`).join("")}</ol>`;
-}
-
-/* ---------- Report downloads ---------- */
-function reportToMarkdown(){
-  const r=state.report; if(!r)return "";
-  let md=`# ${r.title||state.topic}\n\n`;
-  md+=`> お題: ${state.topic}\n\n`;
-  md+=`${r.overview||""}\n\n`;
-  (r.sections||[]).forEach((s,i)=>{
-    md+=`## ${i+1}. ${s.heading||""}\n\n${s.body||""}\n\n`;
-    if(Array.isArray(s.points)&&s.points.length){ s.points.forEach(p=>md+=`- ${p}\n`); md+="\n"; }
+function renderQuestion(){
+  const i=state.qIndex,q=state.questions[i],a=state.answers[i];
+  $("#qCount").textContent=`${i+1} / ${state.questions.length}`;
+  $("#qFill").style.width=((i)/(state.questions.length)*100)+"%";
+  $("#qText").textContent=q.text;
+  const rr=$("#qReason");
+  if(q.reason){rr.style.display="flex";rr.querySelector("span").textContent=q.reason;}else rr.style.display="none";
+  const box=$("#qOpts");box.innerHTML="";
+  q.options.forEach((opt,idx)=>{
+    const o=el("div","opt"+(a.type==="option"&&a.index===idx?" sel":""));
+    const rad=el("div","radio");
+    const tx=el("div","otext",opt);
+    o.append(rad,tx);
+    if(idx===q.recommendedIndex)o.append(el("span","rec-badge","AIの推奨"));
+    o.onclick=()=>{state.answers[i]={type:"option",index:idx,text:""};renderQuestion();};
+    box.append(o);
   });
-  md+=`## 結論\n\n${r.conclusion||""}\n\n`;
-  md+=`---\n\n### 回答一覧\n\n`;
-  collectLeaves().forEach(l=>{ md+=`- **${l.node.question}**\n  - 回答: ${l.node.answer||"（未回答）"}\n`; });
+  // free text option
+  const fo=el("div","opt"+(a.type==="free"?" sel":""));
+  const frad=el("div","radio");
+  const ftx=el("div","otext","自由記述で答える");
+  fo.append(frad,ftx);
+  fo.onclick=(e)=>{if(e.target.tagName==="TEXTAREA")return;state.answers[i]={type:"free",index:-1,text:state.answers[i].text||""};renderQuestion();};
+  box.append(fo);
+  const fa=el("div","free-area"+(a.type==="free"?" on":""));
+  const ta=el("textarea","input");ta.placeholder="あなたの答えを自由に記述してください";ta.value=a.text||"";
+  ta.style.minHeight="72px";ta.style.marginTop="10px";
+  ta.addEventListener("input",()=>{state.answers[i].text=ta.value;});
+  fa.append(ta);box.append(fa);
+  if(a.type==="free")requestAnimationFrame(()=>ta.focus());
+
+  $("#qPrev").style.display=i>0?"inline-flex":"none";
+  $("#qNext").querySelector("span").textContent = i===state.questions.length-1 ? "回答を導く" : "次へ";
+}
+function nextQuestion(){
+  const a=state.answers[state.qIndex];
+  if(a.type==="free"&&!a.text.trim()){toast("自由記述の内容を入力してください。");return;}
+  if(state.qIndex<state.questions.length-1){state.qIndex++;renderQuestion();}
+  else deriveFinal();
+}
+async function deriveFinal(){
+  $("#qFill").style.width="100%";
+  const t=toast("お題に答えるレポートを作成しています…",{timeout:60000});
+  try{
+    const outline=treeToOutline(state.tree);
+    const qa=state.questions.map((q,i)=>{
+      const a=state.answers[i];
+      const ans=a.type==="free"?a.text:q.options[a.index];
+      return `Q${i+1}: ${q.text}\nA${i+1}: ${ans}`;
+    }).join("\n\n");
+    const r=await geminiJSON(SYS_ANALYST,promptReportRefined(state.question,outline,qa,state.settings.answerLimit));
+    state.result=normalizeResult(r,"refined");
+    if(!state.result.conclusion && !state.result.recommendations.length)throw new Error("レポートを生成できませんでした。");
+    t.remove();
+    state.viewingSaved=false;
+    restoreResultActions();
+    renderResult(currentReport());
+    showScreen("result");
+  }catch(err){t.remove();toast("導出に失敗："+err.message,{timeout:6000});}
+}
+
+async function generateComprehensive(){
+  pruneEmpty(state.tree);
+  if(!state.tree.length){toast("ツリーが空です。ノードを追加してください。");return;}
+  const t=toast("お題に答えるレポートを作成しています…",{timeout:60000});
+  try{
+    const outline=treeToOutline(state.tree);
+    const r=await geminiJSON(SYS_ANALYST,promptReportComprehensive(state.question,outline,state.settings.answerLimit));
+    state.result=normalizeResult(r,"comprehensive");
+    if(!state.result.conclusion && !state.result.recommendations.length)throw new Error("レポートを生成できませんでした。");
+    state.questions=[];state.answers=[];
+    t.remove();
+    state.viewingSaved=false;
+    restoreResultActions();
+    renderResult(currentReport());
+    showScreen("result");
+  }catch(err){t.remove();toast("作成に失敗："+err.message,{timeout:6000});}
+}
+
+/* ============================================================
+   RESULT RENDERING
+   ============================================================ */
+function currentReport(){
+  return {
+    id:null,savedAt:null,
+    kind:(state.result&&state.result.kind)||"refined",
+    question:state.question,
+    tree:state.tree,
+    questions:state.questions,
+    answers:state.answers,
+    result:state.result
+  };
+}
+function renderResult(rep){
+  const R=rep.result;
+  const kind=rep.kind||R.kind||"refined";
+  $("#rQuestion").textContent=rep.question;
+  const v=$("#rVerdict");
+  const kindTxt = kind==="comprehensive" ? "包括版（ツリーのみ）" : "状況で絞り込み";
+  const typeTxt = R.type==="multiple" ? "優先順位つき複数" : "単一集中";
+  v.className="verdict "+(kind==="comprehensive"?"multiple":"single");
+  v.textContent=kindTxt+" ・ "+typeTxt;
+  $("#rConclusion").textContent=R.conclusion||"";
+
+  // examination
+  const ex=$("#rExamination");ex.innerHTML="";
+  if(R.examination&&R.examination.length){
+    $("#rExamCard").style.display="";
+    R.examination.forEach(e=>{
+      const it=el("div","exam-item");
+      it.innerHTML=`<div class="ex-b">${esc(e.branch)}</div><div class="ex-a">${esc(e.assessment)}</div>`;
+      ex.append(it);
+    });
+  }else $("#rExamCard").style.display="none";
+
+  // recommendations
+  const box=$("#rAnswers");box.innerHTML="";
+  const sorted=[...R.recommendations].sort((a,b)=>(a.priority||99)-(b.priority||99));
+  sorted.forEach((a,i)=>{
+    const c=el("div","ans");
+    const rankTxt = R.type==="multiple" ? `第 ${a.priority||i+1} 優先` : "推奨";
+    c.innerHTML=`<div class="rank">${esc(rankTxt)}</div><h3>${esc(a.title)}</h3>
+      <div class="meta">
+        <div class="metrow"><span class="k">理由</span><span>${esc(a.reason)}</span></div>
+        <div class="metrow"><span class="k">期待効果</span><span>${esc(a.effect)}</span></div>
+        <div class="metrow"><span class="k">実行の目安</span><span>${esc(a.execution)}</span></div>
+      </div>`;
+    box.append(c);
+  });
+
+  // premise (only if present)
+  if(R.premise){$("#rPremiseWrap").style.display="";$("#rPremise").textContent=R.premise;}
+  else $("#rPremiseWrap").style.display="none";
+
+  // Q&A (only if answers exist)
+  if(rep.answers&&rep.answers.length&&rep.questions&&rep.questions.length){
+    $("#rQAWrap").style.display="";
+    const qa=$("#rQA");qa.innerHTML="";
+    rep.questions.forEach((q,i)=>{
+      const a=rep.answers[i];if(!a)return;
+      const ans=a.type==="free"?a.text:q.options[a.index];
+      const item=el("div","qa-item");
+      item.innerHTML=`<div class="q">${esc(q.text)}</div><div class="a">${esc(ans)}${a.type==="free"?' <span style="color:var(--faint);font-size:11px">（自由記述）</span>':""}</div>`;
+      qa.append(item);
+    });
+  }else $("#rQAWrap").style.display="none";
+
+  // read-only tree
+  $("#rTree").innerHTML="";
+  $("#rTree").append(roTree(rep.tree,1));
+}
+function roTree(nodes,depth){
+  const frag=document.createDocumentFragment();
+  nodes.forEach(n=>{
+    const w=el("div","ro-node"+(n.flagged?" f":""));
+    const row=el("div","ro-row");
+    row.append(el("span","depth-badge","L"+depth));
+    const tx=el("span","ro-txt",n.text+(n.flagged?"　⚑論点ズレ？":""));
+    row.append(tx);w.append(row);
+    if(n.children&&n.children.length){const k=el("div","ro-children");k.append(roTree(n.children,depth+1));w.append(k);}
+    frag.append(w);
+  });
+  return frag;
+}
+
+/* ============================================================
+   EXPORT (HTML / Markdown)
+   ============================================================ */
+function reportTitle(rep){
+  return rep.question.length>40?rep.question.slice(0,40)+"…":rep.question;
+}
+function treeToMd(nodes,d=0){
+  let s="";
+  nodes.forEach(n=>{
+    s+="  ".repeat(d)+"- "+n.text+(n.flagged?" `⚑論点ズレ？`":"")+"\n";
+    if(n.children.length)s+=treeToMd(n.children,d+1);
+  });
+  return s;
+}
+function buildMarkdown(rep){
+  const R=rep.result;
+  const kind=rep.kind||R.kind||"refined";
+  const kindTxt = kind==="comprehensive" ? "包括版（ツリーのみ）" : "状況で絞り込み";
+  const typeTxt = R.type==="multiple" ? "優先順位つき複数" : "単一集中";
+  let md=`# ${rep.question}\n\n`;
+  md+=`> お題への回答レポート（${kindTxt} ・ ${typeTxt}）`+(rep.savedAt?` ・ ${new Date(rep.savedAt).toLocaleString("ja-JP")}`:"")+`\n\n`;
+  md+=`## 結論\n\n${R.conclusion||""}\n\n`;
+  if(R.examination&&R.examination.length){
+    md+=`## 包括的な検討\n\n`;
+    R.examination.forEach(e=>{ md+=`### ${e.branch}\n${e.assessment}\n\n`; });
+  }
+  md+=`## 推奨（${typeTxt}）\n\n`;
+  [...R.recommendations].sort((a,b)=>(a.priority||99)-(b.priority||99)).forEach((a,i)=>{
+    md+=`### ${R.type==="multiple"?`第${a.priority||i+1}優先`:"推奨"}：${a.title}\n`;
+    md+=`- **理由**：${a.reason}\n- **期待効果**：${a.effect}\n- **実行の目安**：${a.execution}\n\n`;
+  });
+  if(R.premise){ md+=`## 前提（あなたの状況が結論をどう形づくったか）\n\n${R.premise}\n\n`; }
+  if(rep.answers&&rep.answers.length&&rep.questions&&rep.questions.length){
+    md+=`## あなたの回答\n\n`;
+    rep.questions.forEach((q,i)=>{
+      const a=rep.answers[i];if(!a)return;
+      const ans=a.type==="free"?a.text:q.options[a.index];
+      md+=`${i+1}. **${q.text}**\n   → ${ans}${a.type==="free"?"（自由記述）":""}\n`;
+    });
+    md+=`\n`;
+  }
+  md+=`## 検討の足場となったロジックツリー\n\n${treeToMd(rep.tree)}`;
   return md;
 }
-function safeName(){ return (state.topic.slice(0,24).replace(/[\/\\:*?"<>|\s]+/g,"_")||"report"); }
-function triggerDownload(content,mime,ext){
-  const blob=new Blob([content],{type:mime});
-  const url=URL.createObjectURL(blob);
-  const a=el("a"); a.href=url; a.download="report-"+safeName()+ext; a.click(); URL.revokeObjectURL(url);
+function roTreeHTML(nodes,depth){
+  let s="<div class='rt'>";
+  nodes.forEach(n=>{
+    s+=`<div class='rn${n.flagged?" f":""}'><div class='rr'><span class='lb'>L${depth}</span><span>${esc(n.text)}${n.flagged?" ⚑論点ズレ？":""}</span></div>`;
+    if(n.children.length)s+=`<div class='rc'>${roTreeHTMLInner(n.children,depth+1)}</div>`;
+    s+="</div>";
+  });
+  return s+"</div>";
 }
-function downloadReportMd(){ triggerDownload(reportToMarkdown(),"text/markdown;charset=utf-8",".md"); toast("Markdownを保存しました"); }
-function downloadReportHtml(){ triggerDownload(standaloneReportHtml(),"text/html;charset=utf-8",".html"); toast("HTMLを保存しました"); }
-
-function standaloneReportHtml(){
-  const r=state.report;
-  const body=reportInnerHtml(r);
-  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(r.title||state.topic)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+function roTreeHTMLInner(nodes,depth){
+  let s="";
+  nodes.forEach(n=>{
+    s+=`<div class='rn${n.flagged?" f":""}'><div class='rr'><span class='lb'>L${depth}</span><span>${esc(n.text)}${n.flagged?" ⚑論点ズレ？":""}</span></div>`;
+    if(n.children.length)s+=`<div class='rc'>${roTreeHTMLInner(n.children,depth+1)}</div>`;
+    s+="</div>";
+  });
+  return s;
+}
+function buildHTML(rep){
+  const R=rep.result;
+  const kind=rep.kind||R.kind||"refined";
+  const kindTxt = kind==="comprehensive" ? "包括版（ツリーのみ）" : "状況で絞り込み";
+  const typeTxt = R.type==="multiple" ? "優先順位つき複数" : "単一集中";
+  const recs=[...R.recommendations].sort((a,b)=>(a.priority||99)-(b.priority||99)).map((a,i)=>`
+    <div class="ans"><div class="rank">${R.type==="multiple"?`第 ${a.priority||i+1} 優先`:"推奨"}</div>
+    <h3>${esc(a.title)}</h3>
+    <div class="mr"><span class="k">理由</span><span>${esc(a.reason)}</span></div>
+    <div class="mr"><span class="k">期待効果</span><span>${esc(a.effect)}</span></div>
+    <div class="mr"><span class="k">実行の目安</span><span>${esc(a.execution)}</span></div></div>`).join("");
+  const exam=(R.examination&&R.examination.length)?`
+    <div class="card"><div class="sub">包括的な検討</div>${
+      R.examination.map(e=>`<div class="exi"><div class="exb">${esc(e.branch)}</div><div class="exa">${esc(e.assessment)}</div></div>`).join("")
+    }</div>`:"";
+  const premise=R.premise?`<div class="card"><div class="sub">前提 — あなたの状況が結論をどう形づくったか</div><div class="basis">${esc(R.premise)}</div></div>`:"";
+  const qaHtml=(rep.answers&&rep.answers.length&&rep.questions&&rep.questions.length)?`
+    <div class="card"><div class="sub">あなたの回答</div>${
+      rep.questions.map((q,i)=>{const a=rep.answers[i];if(!a)return"";const ans=a.type==="free"?a.text:q.options[a.index];
+        return `<div class="qa"><div class="q">${esc(q.text)}</div><div class="a">→ ${esc(ans)}${a.type==="free"?" <em>（自由記述）</em>":""}</div></div>`;}).join("")
+    }</div>`:"";
+  return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(reportTitle(rep))} — 思考の分岐</title>
 <style>
-:root{--ink:#1A2733;--muted:#5C6B78;--line:#D3DAE1;--accent:#C0722E;--paper:#F4F5F7;--soft:#FBF4EC}
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:"Space Grotesk",system-ui,sans-serif;line-height:1.7;padding:48px 20px}
-.report{max-width:760px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:52px 56px;box-shadow:0 10px 40px rgba(20,35,50,.06)}
-.rp-eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
-h1{font-family:"Newsreader",serif;font-weight:600;font-size:34px;line-height:1.25;margin:0 0 18px}
-.rp-topic{font-size:14px;color:var(--muted);display:flex;gap:9px;align-items:baseline;border-left:2px solid var(--accent);padding-left:12px;margin-bottom:8px}
-.rp-k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);flex:none}
-.rp-overview{font-family:"Newsreader",serif;font-size:18px;line-height:1.75;color:#28323c;background:var(--soft);border-radius:10px;padding:20px 24px;margin:26px 0 34px}
-.rp-overview p{margin:0 0 10px}.rp-overview p:last-child{margin:0}
-.rp-sec{margin:30px 0}
-h2{font-size:19px;font-weight:600;margin:0 0 12px;display:flex;align-items:baseline;gap:12px}
-.rp-num{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--accent);font-weight:500}
-.report p{margin:0 0 12px;font-size:15px}
-.rp-points{margin:8px 0 0;padding-left:20px}.rp-points li{font-size:14.5px;margin:5px 0;color:#33404b}
-.rp-conclusion{margin:38px 0 8px;background:#16202B;color:#EAF0F5;border-radius:12px;padding:26px 30px}
-.rp-conclusion h2{color:#fff}.rp-conclusion p{font-size:15.5px;color:#DCE5EC}
-.rp-conclusion h2::before{content:"結論";}
-.rp-appendix{margin-top:34px;border-top:1px solid var(--line);padding-top:18px}
-summary{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);cursor:pointer;letter-spacing:.04em}
-.rp-qa{margin:16px 0 0;padding:0;list-style:none;counter-reset:qa}
-.rp-qa li{padding:10px 0;border-bottom:1px solid var(--line)}
-.rp-qa-q{font-family:"Newsreader",serif;font-size:15px;color:var(--ink);margin-bottom:3px}
-.rp-qa-a{font-size:13.5px;color:var(--accent)}
-.rp-na{color:#9aa6b0}
-@media print{body{background:#fff;padding:0}.report{border:none;box-shadow:none;border-radius:0;max-width:none;padding:24px}}
-</style></head><body><article class="report">${body.replace('<h2>結論</h2>','<h2></h2>')}</article></body></html>`;
+:root{--ink:#191F30;--muted:#5C6579;--faint:#8A93A6;--line:#D3DAE7;--accent:#3A4BC0;--tint:#F0F2FC;--amber:#A76A10;--bg:#E9EDF3}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;line-height:1.65;padding:40px 16px}
+.wrap{max-width:760px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px;margin-bottom:18px;box-shadow:0 6px 24px rgba(25,31,48,.06)}
+h1{font-size:24px;margin:6px 0 0;letter-spacing:-.02em}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+.verdict{display:inline-block;font-size:12px;font-weight:600;padding:5px 13px;border-radius:99px;background:var(--tint);color:var(--accent);margin-bottom:6px}
+.concl{font-size:16.5px;line-height:1.74;margin-top:18px;padding:16px 20px;background:var(--tint);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;font-weight:500}
+.ans{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:18px 20px;margin-top:14px}
+.rank{font-weight:700;font-size:12px;color:var(--accent);letter-spacing:.04em}
+.ans h3{margin:6px 0 12px;font-size:18px}
+.mr{display:grid;grid-template-columns:88px 1fr;gap:12px;font-size:14px;margin:8px 0}
+.mr .k{color:var(--faint);font-weight:600;font-size:12px}
+.sub{font-size:12px;font-weight:700;letter-spacing:.02em;color:var(--muted);text-transform:uppercase;margin:0 0 14px}
+.exi{padding:13px 0;border-bottom:1px dashed var(--line)}.exi:last-child{border:none}
+.exb{font-weight:600;font-size:14px;color:var(--accent);margin-bottom:4px}
+.exa{font-size:13.7px;color:var(--muted)}
+.basis{background:#F3F6FB;border:1px solid var(--line);border-radius:8px;padding:16px;font-size:14px;color:var(--muted)}
+.qa{border-bottom:1px dashed var(--line);padding:11px 0;font-size:14px}.qa:last-child{border:none}
+.qa .q{font-weight:600}.qa .a{color:var(--accent);margin-top:3px}.qa em{color:var(--faint);font-style:normal;font-size:11px}
+.rt{margin-top:6px}.rn{margin:3px 0}.rr{display:flex;gap:8px;align-items:baseline;font-size:13.5px}
+.rc{margin-left:18px;padding-left:13px;border-left:1.5px solid var(--line)}
+.lb{font-size:10px;font-weight:700;color:var(--accent);background:var(--tint);border-radius:5px;padding:1px 5px;flex:none}
+.rn.f>.rr>span:last-child{color:var(--amber)}
+.foot{text-align:center;color:var(--faint);font-size:12px;margin-top:8px}
+@media print{body{background:#fff;padding:0}.card{box-shadow:none;border:none;page-break-inside:avoid}}
+</style></head><body><div class="wrap">
+<div class="card"><span class="verdict">${esc(kindTxt)} ・ ${esc(typeTxt)}</span><div class="eyebrow">お題への回答</div><h1>${esc(rep.question)}</h1><div class="concl">${esc(R.conclusion||"")}</div></div>
+${exam}
+<div class="card"><div class="sub">推奨</div>${recs}</div>
+${premise}
+${qaHtml}
+<div class="card"><div class="sub">検討の足場となったロジックツリー</div>${roTreeHTML(rep.tree,1)}</div>
+<div class="foot">思考の分岐 — ロジックツリー意思決定ツール${rep.savedAt?" ・ "+new Date(rep.savedAt).toLocaleString("ja-JP"):""}</div>
+</div></body></html>`;
 }
-loadSettings();
-buildSteps();
-buildModes();
-applyModeToTopicPlaceholder();
-autosize();
-renderHistory();
-renderCanvas();
+function download(filename,content,type){
+  const blob=new Blob([content],{type});
+  const url=URL.createObjectURL(blob);
+  const a=el("a");a.href=url;a.download=filename;document.body.append(a);a.click();
+  setTimeout(()=>{a.remove();URL.revokeObjectURL(url);},100);
+}
+function safeName(rep){
+  const base=rep.question.replace(/[\\/:*?"<>|\n]+/g,"_").slice(0,30).trim()||"report";
+  return base;
+}
+
+/* ============================================================
+   INDEXEDDB (reports + key)
+   ============================================================ */
+const DB_NAME="logic_tree_db",DB_VER=1;
+let _db=null;
+function db(){
+  return new Promise((res,rej)=>{
+    if(_db)return res(_db);
+    const req=indexedDB.open(DB_NAME,DB_VER);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains("reports"))d.createObjectStore("reports",{keyPath:"id"});
+      if(!d.objectStoreNames.contains("kv"))d.createObjectStore("kv",{keyPath:"k"});
+    };
+    req.onsuccess=e=>{_db=e.target.result;res(_db);};
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+async function idbPut(store,val){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(store,"readwrite");tx.objectStore(store).put(val);tx.oncomplete=()=>res();tx.onerror=e=>rej(e.target.error);});}
+async function idbGet(store,key){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(store,"readonly");const r=tx.objectStore(store).get(key);r.onsuccess=()=>res(r.result);r.onerror=e=>rej(e.target.error);});}
+async function idbDel(store,key){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(store,"readwrite");tx.objectStore(store).delete(key);tx.oncomplete=()=>res();tx.onerror=e=>rej(e.target.error);});}
+async function idbAll(store){const d=await db();return new Promise((res,rej)=>{const tx=d.transaction(store,"readonly");const r=tx.objectStore(store).getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=e=>rej(e.target.error);});}
+
+async function saveCurrentReport(){
+  const rep=currentReport();
+  rep.id="rep_"+Date.now();
+  rep.savedAt=Date.now();
+  try{await idbPut("reports",rep);toast("レポートを保存しました。");}
+  catch(e){toast("保存に失敗しました："+e.message);}
+}
+async function loadSavedList(){
+  const list=$("#savedList");list.innerHTML="";
+  let reps=[];
+  try{reps=await idbAll("reports");}catch(e){}
+  reps.sort((a,b)=>b.savedAt-a.savedAt);
+  if(!reps.length){
+    list.innerHTML=`<div class="empty"><div class="big">まだ保存されたレポートはありません</div>検討を終えたら「このレポートを保存」で残せます。</div>`;
+    return;
+  }
+  reps.forEach(rep=>{
+    const item=el("div","saved-item");
+    const info=el("div","info");
+    const kindLabel = (rep.kind==="comprehensive") ? "包括版" : "絞り込み版";
+    info.innerHTML=`<div class="sq">${esc(reportTitle(rep))}</div><div class="sd">${kindLabel}・${new Date(rep.savedAt).toLocaleString("ja-JP")}・${countNodes(rep.tree)}ノード</div>`;
+    const acts=el("div","sacts");
+    const bOpen=el("button","mini","開く");bOpen.onclick=()=>openSaved(rep);
+    const bH=el("button","mini","HTML");bH.onclick=()=>download(safeName(rep)+".html",buildHTML(rep),"text/html");
+    const bM=el("button","mini","MD");bM.onclick=()=>download(safeName(rep)+".md",buildMarkdown(rep),"text/markdown");
+    const bD=el("button","mini dg","削除");bD.onclick=()=>{
+      toast("削除しますか？",{warn:true,action:"削除する",timeout:5000,onAction:async()=>{await idbDel("reports",rep.id);loadSavedList();toast("削除しました。");}});
+    };
+    acts.append(bOpen,bH,bM,bD);
+    item.append(info,acts);
+    list.append(item);
+  });
+}
+function openSaved(rep){
+  state.viewingSaved=true;
+  renderResult(rep);
+  // swap action card for saved-view actions
+  const card=$("#resultActionsCard");
+  card.querySelector(".actions").innerHTML="";
+  const acts=card.querySelector(".actions");
+  const bH=el("button","primary-btn","HTMLで書き出し");bH.onclick=()=>download(safeName(rep)+".html",buildHTML(rep),"text/html");
+  const bM=el("button","subtle-btn","Markdownで書き出し");bM.onclick=()=>download(safeName(rep)+".md",buildMarkdown(rep),"text/markdown");
+  const sp=el("span","spacer");
+  const back=el("button","subtle-btn","保存レポート一覧へ戻る");back.onclick=()=>{showScreen("saved");loadSavedList();restoreResultActions();};
+  acts.append(bH,bM,sp,back);
+  showScreen("result");
+}
+function restoreResultActions(){
+  const acts=$("#resultActionsCard .actions");
+  const refineBtn = (state.result && state.result.kind==="comprehensive")
+    ? `<button class="subtle-btn" id="refineBtn">さらに質問で状況に合わせて絞り込む →</button>` : "";
+  acts.innerHTML=`
+    <button class="primary-btn" id="saveReport"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h8l2 2v9H3z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 2.5v4h6M5 9.5h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>このレポートを保存</button>
+    <button class="subtle-btn" id="dlHtml">HTMLで書き出し</button>
+    <button class="subtle-btn" id="dlMd">Markdownで書き出し</button>
+    ${refineBtn}
+    <span class="spacer"></span>
+    <button class="subtle-btn" id="newRun">新しい問いを始める</button>`;
+  bindResultActions();
+}
+
+/* ============================================================
+   SETTINGS PERSISTENCE
+   ============================================================ */
+async function loadKey(){
+  try{
+    const rec=await idbGet("kv","apiKey");
+    if(rec&&rec.v){state.settings.apiKey=rec.v;$("#apiKey").value=rec.v;$("#clearKey").style.display="inline-block";}
+  }catch(e){}
+}
+async function persistKey(){
+  if(state.settings.saveKey&&state.settings.apiKey){
+    try{await idbPut("kv",{k:"apiKey",v:state.settings.apiKey});$("#clearKey").style.display="inline-block";}catch(e){}
+  }
+}
+async function loadSettings(){
+  try{const rec=await idbGet("kv","settings");if(rec&&rec.v)Object.assign(state.settings,rec.v);}catch(e){}
+  applySettingsToUI();
+}
+async function persistSettings(){
+  const {apiKey,...rest}=state.settings;
+  try{await idbPut("kv",{k:"settings",v:rest});}catch(e){}
+}
+function applySettingsToUI(){
+  $("#model").value=state.settings.model;
+  $("#saveKey").checked=state.settings.saveKey;
+  $$(".stepper").forEach(st=>{st.querySelector(".val").textContent=state.settings[st.dataset.key];});
+}
+
+/* ============================================================
+   EVENT BINDING
+   ============================================================ */
+function bindResultActions(){
+  $("#saveReport")&&($("#saveReport").onclick=saveCurrentReport);
+  $("#dlHtml")&&($("#dlHtml").onclick=()=>download(safeName(currentReport())+".html",buildHTML(currentReport()),"text/html"));
+  $("#dlMd")&&($("#dlMd").onclick=()=>download(safeName(currentReport())+".md",buildMarkdown(currentReport()),"text/markdown"));
+  $("#newRun")&&($("#newRun").onclick=resetRun);
+  $("#refineBtn")&&($("#refineBtn").onclick=generateQuestions);
+}
+function resetRun(){
+  state.tree=[];state.questions=[];state.answers=[];state.result=null;state.qIndex=0;state.viewingSaved=false;
+  restoreResultActions();
+  showScreen("setup");
+}
+
+// steppers
+$$(".stepper").forEach(st=>{
+  const key=st.dataset.key,min=+st.dataset.min,max=+st.dataset.max,val=st.querySelector(".val");
+  st.querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    let v=state.settings[key]+(+b.dataset.d);
+    v=Math.max(min,Math.min(max,v));
+    state.settings[key]=v;val.textContent=v;persistSettings();
+  });
+});
+$("#model").onchange=e=>{state.settings.model=e.target.value;persistSettings();};
+$("#saveKey").onchange=e=>{
+  state.settings.saveKey=e.target.checked;persistSettings();
+  if(!e.target.checked){idbDel("kv","apiKey");$("#clearKey").style.display="none";}
+  else persistKey();
+};
+$("#apiKey").oninput=e=>{state.settings.apiKey=e.target.value.trim();persistKey();};
+$("#toggleKey").onclick=()=>{const k=$("#apiKey");k.type=k.type==="password"?"text":"password";};
+$("#clearKey").onclick=async()=>{await idbDel("kv","apiKey");state.settings.apiKey="";$("#apiKey").value="";$("#clearKey").style.display="none";toast("保存したキーを消去しました。");};
+
+$("#startBtn").onclick=()=>{
+  const q=$("#question").value.trim();
+  if(!q){$("#setupNote").textContent="問いを入力してください。";$("#question").focus();return;}
+  if(!state.settings.apiKey){$("#setupNote").textContent="Gemini APIキーを入力してください。";$("#apiKey").focus();return;}
+  $("#setupNote").textContent="";
+  state.question=q;
+  showScreen("gen");
+  runGeneration();
+};
+$("#retryBtn").onclick=()=>{$("#genErr").classList.remove("on");$("#genActions").style.display="none";if(state.genResume)state.genResume();};
+$("#genBackBtn").onclick=()=>showScreen("setup");
+$("#reviewBackBtn").onclick=()=>showScreen("setup");
+$("#toComprehensive").onclick=generateComprehensive;
+$("#toQuestions").onclick=generateQuestions;
+$("#rerunReview").onclick=async()=>{
+  pruneEmpty(state.tree);
+  const t=toast("AIレビューを実行中…",{timeout:60000});
+  try{
+    const outline=treeToOutline(state.tree);
+    const r=await geminiJSON(SYS_ARCHITECT,promptReview(state.question,outline,state.settings.branchLimit));
+    const nt=normalizeTree(r.tree||[]);if(nt.length)state.tree=nt;
+    t.remove();renderTree();toast("レビューを反映しました。");
+  }catch(err){t.remove();toast("レビュー失敗："+err.message,{timeout:6000});}
+};
+$("#qNext").onclick=nextQuestion;
+$("#qPrev").onclick=()=>{if(state.qIndex>0){state.qIndex--;renderQuestion();}};
+$("#navSaved").onclick=()=>{restoreResultActions();showScreen("saved");loadSavedList();};
+$("#savedBack").onclick=()=>showScreen(state.result?"result":"setup");
+
+bindResultActions();
+
+/* ============================================================
+   INIT
+   ============================================================ */
+(async function init(){
+  await loadSettings();
+  await loadKey();
+  showScreen("setup");
+})();
 </script>
 </body>
 </html>
