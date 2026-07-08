@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>思考の構造化 — ロジックツリー意思決定ツール</title>
+<title>思考の分岐 — ロジックツリー意思決定ツール</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -133,6 +133,9 @@
   .p-note{font-size:12px;color:var(--faint)}
   li.done .p-ico{border-color:var(--green);background:var(--green-soft);color:var(--green)}
   li.done .p-txt{color:var(--muted)}
+  li.warn .p-ico{border-color:var(--amber);background:var(--amber-soft);color:var(--amber)}
+  li.warn .p-txt{color:var(--muted)}
+  li.warn .p-note{color:var(--amber)}
   li.active .p-ico{border-color:var(--accent);color:var(--accent)}
   li.active .p-txt{color:var(--ink);font-weight:600}
   li.error .p-ico{border-color:var(--red);background:var(--red-soft);color:var(--red)}
@@ -582,7 +585,7 @@ async function geminiJSON(system, user, allowRetry=true){
   const body={
     systemInstruction:{parts:[{text:system}]},
     contents:[{role:"user",parts:[{text:user}]}],
-    generationConfig:{responseMimeType:"application/json",temperature:0.6,maxOutputTokens:8192}
+    generationConfig:{responseMimeType:"application/json",temperature:0.6,maxOutputTokens:65536}
   };
   let res;
   try{
@@ -597,10 +600,12 @@ async function geminiJSON(system, user, allowRetry=true){
   }
   const data=await res.json();
   const cand=data?.candidates?.[0];
-  if(cand?.finishReason==="SAFETY") throw new Error("安全性フィルタにより応答が生成されませんでした。問いの表現を変えてお試しください。");
+  const finish=cand?.finishReason;
+  if(finish==="SAFETY"||finish==="PROHIBITED_CONTENT") throw new Error("安全性フィルタにより応答が生成されませんでした。問いの表現を変えてお試しください。");
   const text=(cand?.content?.parts||[]).map(p=>p.text||"").join("");
   try{ return JSON.parse(stripFences(text)); }
   catch(e){
+    if(finish==="MAX_TOKENS") throw new Error("ツリーが大きく、出力が上限に達して途中で切れました。設定で「深さ」や「1階層の目安上限」を下げて再試行してください。");
     if(allowRetry) return geminiJSON(system,user,false);
     throw new Error("応答をJSONとして解析できませんでした。");
   }
@@ -788,10 +793,11 @@ function buildProgress(reviewCount){
 }
 function setStep(id,status,note){
   const li=$(`#prog li[data-id="${id}"]`);if(!li)return;
-  li.classList.remove("active","done","error");
+  li.classList.remove("active","done","error","warn");
   const ico=li.querySelector(".p-ico");
   if(status==="active"){li.classList.add("active");ico.innerHTML='<span class="spin"></span>';}
   else if(status==="done"){li.classList.add("done");ico.innerHTML='<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 6 11l5.5-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+  else if(status==="warn"){li.classList.add("warn");ico.innerHTML='<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M7 2v6M7 11v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';}
   else if(status==="error"){li.classList.add("error");ico.innerHTML='<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';}
   else{ico.innerHTML="";}
   if(note!=null)li.querySelector(".p-note").textContent=note;
@@ -818,7 +824,7 @@ async function runGeneration(){
     if(!state.tree.length)throw new Error("ツリーを生成できませんでした。");
   }});
   for(let i=1;i<=settings.reviewCount;i++){
-    stages.push({id:"rev"+i,run:async()=>{
+    stages.push({id:"rev"+i,soft:true,run:async()=>{
       const outline=treeToOutline(state.tree);
       const r=await geminiJSON(SYS_ARCHITECT,promptReview(question,outline,settings.branchLimit));
       const t=normalizeTree(r.tree||[]);
@@ -837,6 +843,10 @@ async function runStages(stages,startIdx){
       const note = (st.id==="deepen"||st.id.startsWith("rev")) ? countNodes(state.tree)+" ノード" : "";
       setStep(st.id,"done",note);
     }catch(err){
+      if(st.soft){
+        setStep(st.id,"warn","スキップ（前の結果を保持）");
+        continue;
+      }
       setStep(st.id,"error");
       showGenError(err.message, ()=>{ runStages(stages,i); });
       return;
